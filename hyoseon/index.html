@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js</title>
+  <style>
+  </style>
+</head>
+<body>
+  
+  <script>
+    /* 
+    일급의 의미
+    : 값으로 다룰 수 있다 
+    (변수에 담을수도, 함수의 인자, 함수의 반환값으로 사용할 수 있다.)
+    
+    일급 함수의 의미
+    : 함수를 값으로 다룰 수  있다. 
+    (조합성과 추상화의 도구가 됨)
+    */
+
+    const f = () => () => 1;  
+
+    /* 
+    고차함수 
+    : 함수를 값으로 다루는 함수 
+    1. 함수를 인자로 만들어서 실행하는 함수 
+    2. 함수를 만들어 리턴하는 함수(클로저를 만들어 리턴하는 함수) 
+     */
+
+     const apply1 = f => f(1);//1
+    
+     const add = addMaker();
+  </script>
+</body>
+</html>
