@@ -16,6 +16,7 @@
     이터러블 인지 아닌지를 확인하려면, 아래와 같이 Symbol.iterator를 확인하면 된다.
 
     console.log(Symbol.iterator in obj)
+    console.log(obj[Symbol.iterator]() == obj);
 */
 
 /*
@@ -29,13 +30,13 @@
 
 // 객체는 이터러블이 아니다
 // TypeError: rules is not iterable
-// const rules1 = {
-//     "출석": "참석하기",
-//     "학습": "결과물 제출하기",
-// };
-// for (const obj of rules1) {
-//     console.log(obj);
-// }
+const rules1 = {
+    "출석": "참석하기",
+    "학습": "결과물 제출하기",
+};
+for (const obj of rules1) {
+    console.log(obj);
+}
 
 /*
     [정리 4]
@@ -93,3 +94,6 @@ console.log(Symbol.iterator in iter)
 for (const a of iter) {
     console.log(a);
 }
+
+// 추가로 참고한 블로그
+// https://poiemaweb.com/es6-iteration-for-of
