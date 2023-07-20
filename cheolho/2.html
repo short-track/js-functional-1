@@ -1,0 +1,90 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+
+<script>const log = console.log;</script>
+
+# 제너레이터/이터레이터
+- 제너레이터: 이터레이터이자 이터러블을 생성하는 함수
+
+<script>
+  // 제너레이터는 이런 문장을 값으로 만들 수 있고, 이 문장을 통해서 순회할 수 있는 값을 만들 수 있다
+  // js는 제너레이터를 통해서 어떠한 값이든 순회할 수 있는 형태로 만들 수 있다
+  function *gen() {
+    yield 1;
+    if (false) yield 2;
+    yield 3;
+    return 100;
+  }
+  let iter = gen();
+  // 제너레이터는 well-formed 이터레이터를 반환하는 함수
+  log(iter[Symbol.iterator]() == iter);
+  log(iter.next());
+  log(iter.next());
+  log(iter.next());
+  log(iter.next());
+
+  // 순회할 때 리턴값은 제외한다.
+  for (const a of gen()) log(a);
+</script>
+
+# odds
+
+<script>
+  log('odds =======');
+  // 무한수열을 표현할 수 있다
+  function *infinity(i = 0) {
+    while(true) yield i++;
+  }
+
+  function *limit(l, iter) {
+    for (const a of iter) {
+      yield a;
+      if (a == l) return;
+    }
+  }
+
+  function *odds(l) {
+    for (const a of limit(l, infinity(1))) {
+      if (a % 2) yield a;
+    }
+  }
+  let iter2 = odds(10);
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+  log(iter2.next());
+
+  for (const a of odds(40)) log(a);
+</script>
+
+# for of, 전개 연산자, 구조 분해, 나머지 연산자
+<script>
+  log('for of, 전개 연산자, 구조 분해, 나머지 연산자');
+  log(...odds(10));
+  log([...odds(10), ...odds(20)]);
+
+  const [head, ...tail] = odds(5);
+
+  log(head);
+  log(tail);
+
+  const [a, b, ...rest] = odds(10);
+  log(a);
+  log(b);
+  log(rest);
+</script>
+  
+</body>
+</html>
