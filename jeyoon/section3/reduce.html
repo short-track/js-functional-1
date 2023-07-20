@@ -1,0 +1,61 @@
+# reduce
+<!-- 값을 축약하는 함수  -->
+
+<script>
+  const log = console.log;
+</script>
+
+<script>
+  const products = [
+    { name: "반팔티", price: 15000 },
+    { name: "긴팔티", price: 20000 },
+    { name: "핸드폰케이스", price: 15000 },
+    { name: "후드티", price: 30000 },
+    { name: "바지", price: 25000 },
+  ];
+</script>
+
+<script>
+  const nums = [1, 2, 3, 4, 5];
+
+  let total = 0;
+  for (const n of nums) {
+    total = total + n; // 하나의 값으로 누적 (축약)
+  }
+  log(total);
+
+  const reduce = (f, acc, iter) => {
+    // (보조함수, 초기값(누적될 값), 순회할 이터러블)
+    if (!iter) {
+      iter = acc[Symbol.iterator]();
+      acc = iter.next().value; // 첫번째 값으로 설정
+    }
+    for (const a of iter) {
+      acc = f(acc, a);
+    }
+    return acc;
+  };
+
+  const add = (a, b) => a + b;
+
+  log(reduce(add, 0, [1, 2, 3, 4, 5]));
+  // 15
+
+  log(add(add(add(add(add(0, 1), 2), 3), 4), 5));
+  // reduce 내부의 동작을 reduce 없이 구현
+  // 15
+
+  log(reduce(add, [1, 2, 3, 4, 5]));
+  // 초기값을 생략했을 경우, 배열의 첫 번째 값(iter[0])을 꺼내 초기값으로 사용
+  // log(reduce(add, 1, [2, 3, 4, 5])); 이것과 같이 동작
+  // 15
+
+  console.clear();
+</script>
+
+<script>
+  // products에 있는 모든 값 더하기
+  log(
+    reduce((total_price, product) => total_price + product.price, 0, products)
+  );
+</script>

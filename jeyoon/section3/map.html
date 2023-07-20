@@ -1,0 +1,82 @@
+# map
+<script>
+  const log = console.log;
+</script>
+
+<script>
+  const products = [
+    { name: "반팔티", price: 15000 },
+    { name: "긴팔티", price: 20000 },
+    { name: "핸드폰케이스", price: 15000 },
+    { name: "후드티", price: 30000 },
+    { name: "바지", price: 25000 },
+  ];
+</script>
+
+# map
+
+<script>
+  const map = (f, iter) => {
+    let res = [];
+    for (const a of iter) {
+      res.push(f(a));
+    }
+    return res;
+  };
+
+  // let names = [];
+  // for (const p of products) {
+  //   names.push(p.name);
+  // }
+  // log(names);
+
+  log(map((p) => p.name, products));
+
+  // let prices = [];
+  // for (const p of products) {
+  //   prices.push(p.price);
+  // }
+  // log(prices);
+
+  log(map((p) => p.price, products));
+</script>
+
+# 이터러블 프로토콜을 따른 map의 다형성
+
+<script>
+  log([1, 2, 3].map((a) => a + 1));
+
+  log(document.querySelectorAll("*").map((el) => el.nodeName)); // 에러
+  // document.querySelectorAll는 array를 상속받지 않았기 때문에 map함수가 내장되어 있지 않음
+
+  log(map((el) => el.nodeName, document.querySelectorAll("*"))); // 리스트 출력
+
+  // const it = document.querySelectorAll('*')[Symbol.iterator]();
+  // log(it.next());
+  // log(it.next());
+  // log(it.next());
+  // log(it.next());
+  // log(it.next());
+
+  function* gen() {
+    yield 2;
+    if (false) yield 3;
+    yield 4;
+  }
+
+  log(map((a) => a * a, gen())); // [4, 16]
+  // 이와 같이 제너레이터 함수의 결과에 대해서도 map 사용 가능
+
+  let m = new Map(); // 이터러블
+  m.set("a", 10);
+  m.set("b", 20);
+
+  //   const it = m[Symbol.iterator]();
+  //   log(it.next());
+  //   log(it.next());
+  //   log(it.next());
+
+  log(new Map(map(([k, a]) => [k, a * 2], m))); // {"a" => 20, "b" => 40}
+
+  console.clear();
+</script>
