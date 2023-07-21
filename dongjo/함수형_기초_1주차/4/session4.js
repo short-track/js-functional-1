@@ -1,4 +1,4 @@
-import {log, reduce, map, filter} from './common.js';
+import {log, reduce, map, filter} from '../common.js';
 
   const products = [
     {name: '반팔티', price: 15000},

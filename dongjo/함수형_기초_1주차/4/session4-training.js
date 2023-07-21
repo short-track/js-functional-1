@@ -1,4 +1,4 @@
-import {log, reduce, map, filter} from './common.js';
+import {log, reduce, map, filter} from '../common.js';
 const add = (a, b) => a + b;
 
 /*
