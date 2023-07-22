@@ -1,13 +1,16 @@
-const map = (fn, arg) => {
+const curry = f => 
+    (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._) 
+
+const map = curry((fn, arg) => {
     const result = []
 
     for (const element of arg) {
         result.push(fn(element))
     }
     return result
-}
+})
 
-const filter = (fn, arg) => {
+const filter = curry((fn, arg) => {
     const result = []
 
     for (const element of arg) {
@@ -15,9 +18,9 @@ const filter = (fn, arg) => {
     }
 
     return result
-}
+})
 
-const reduce = (fn, acc, iter) => {
+const reduce = curry((fn, acc, iter) => {
     if (!iter) {
         iter = acc[Symbol.iterator]()
         acc = iter.next().value
@@ -26,7 +29,7 @@ const reduce = (fn, acc, iter) => {
         acc = fn(acc, element)
     }
     return acc
-}
+})
 
 const go = (...args) => {
     // reduce를 작성할 때 초기 값이 없는 경우도 처리했기 때문에
@@ -40,10 +43,18 @@ const pipe = (f, ...args) => {
     }
 }
 
-module.exports = {
-    map,
-    filter,
-    reduce,
-    go,
-    pipe
-}
+
+
+// const sum = curry((f, iter) => go(
+//     iter,
+//     curry(map(f)),
+//     curry(reduce(add))))
+
+// export {
+//     map,
+//     filter,
+//     reduce,
+//     go,
+//     pipe,
+//     curry,
+// }
