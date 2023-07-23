@@ -1,5 +1,5 @@
 const curry = f => 
-    (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._) 
+    (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._)       
 
 const map = curry((fn, arg) => {
     const result = []
@@ -37,24 +37,24 @@ const go = (...args) => {
     return reduce((a, fn) => fn(a), args)
 }
 
-const pipe = (f, ...args) => {
-    return function(...acc) {
-        return go(f(...acc), ...args)
-    }
-}
+// const pipe = (f, ...args) => {
+//     return function(...acc) {
+//         return go(f(...acc), ...args)
+//     }
+// }
 
-
+const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
 
 // const sum = curry((f, iter) => go(
 //     iter,
 //     curry(map(f)),
 //     curry(reduce(add))))
 
-// export {
-//     map,
-//     filter,
-//     reduce,
-//     go,
-//     pipe,
-//     curry,
-// }
+module.exports = {
+    map,
+    filter,
+    reduce,
+    go,
+    pipe,
+    curry,
+}
