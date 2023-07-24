@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script>
+    const reduce = (f, acc, iter) => {
+    
+        if(!iter){
+            iter = acc[Symbol.iterator]()
+            acc= iter.next().value
+        }
+
+        for(const a of iter) {
+            acc = f(acc,a)
+        }
+        return acc
+    }
+
+    const go = (...args) => {
+        return reduce((a,f)=> f(a), args)
+    }
+
+    go(
+        0,
+        a => a+1,
+        a=> a+10,
+        a=>a+100,
+        console.log
+    ) ///111
+
+    const pipe = (f, ...fs) => (...args) => {
+        return go(f(...args), ...fs)
+    }
+
+    const test = pipe(
+        (a, b) => a + b,
+        (a)=> a * a,
+        (a)=> a * a,
+        console.log
+    )
+
+    test(1,2)
+
+    
+    </script>
+</head>
+<body>
+    
+</body>
+</html>

@@ -1,0 +1,193 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+  <script>const log = console.log;</script>
+  
+  <script>
+    const products = [
+      { name: '반팔티', price: 15000 },
+      { name: '긴팔티', price: 20000 },
+      { name: '핸드폰케이스', price: 15000 },
+      { name: '후드티', price: 30000 },
+      { name: '바지', price: 25000 }
+    ];
+  </script>
+
+  # map
+  <script>
+    // 명령형
+    // let names = [];
+    // for (const p of products) {
+    //   names.push(p.name);
+    // }
+    // log(names);
+
+    // let prices = [];
+    // for (const p of products) {
+    //   prices.push(p.price);
+    // }
+    // log(prices);
+
+    // 함수형
+    const map = (f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(f(a));
+      }
+      // FP: 인자와 리턴값으로 소통하는 것을 권장
+      // log(names); <- 외부세계
+      return res;
+    };
+
+    log("map ============");
+    
+    log(map(p => p.name, products));
+    log(map(p => p.price, products));
+  </script>
+
+  # 이터러블 프로토콜을 따른 map의 다형성
+  <script>
+    log("이터러블 프로토콜을 따른 map의 다형성 ============");
+    // log(document.querySelectorAll('*').map(el => el.nodeName)); // error
+    log([1, 2, 3].map(a => a + 1));
+
+    log(map(el => el.nodeName, document.querySelectorAll('*')));
+    // const it = document.querySelectorAll('*')[Symbol.iterator]();
+    // log(it.next());
+    // log(it.next());
+    // log(it.next());
+
+    // 문장 역시도 map을 할 수 있음
+    function *gen() {
+      yield 2;
+      if (false) yield 3;
+      yield 4;
+    }
+    log(map(a => a * a, gen()));
+
+    let m = new Map();
+    m.set('a', 10);
+    m.set('b', 20);
+    // const it = m[Symbol.iterator]();
+    // log(it.next());
+    // log(it.next());
+    // log(it.next());
+    log(map(([k, a]) => [k, a * 2], m));
+  </script>
+
+  # filter
+  <script>
+    log("filter ============");
+    // 명령형
+    // let under20000 = [];
+    // for (const p of products) {
+    //   if (p.price < 20000) under20000.push(p);
+    // }
+    // log(...under20000);
+
+    // let over20000 = [];
+    // for (const p of products) {
+    //   if (p.price > 20000) over20000.push(p);
+    // }
+    // log(...over20000);
+
+    // 함수형
+    const filter = (f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a);
+      }
+      return res;
+    };
+
+    log(...filter(p => p.price < 20000, products));
+    log(...filter(p => p.price > 20000, products));
+
+    log(...filter(n => n % 2, [1, 2, 3, 4]));
+
+    log(filter(n => n % 2, function *() {
+      yield 1;
+      yield 2;
+      yield 3;
+      yield 4;
+      yield 5;
+      yield 6;
+    }()));
+  </script>
+
+  # reduce
+  <script>
+    log("reduce ============");
+    // 명령형
+    const nums = [1, 2, 3, 4, 5];
+    let total = 0;
+    for (const n of nums) {
+      total = total + n;
+    }
+    log(total);
+
+    // 함수형
+    const reduce = (f, acc, iter) => {
+      // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      }
+      for (const a of iter) {
+        acc = f(acc, a);
+      }
+      return acc;
+    };
+
+    const add = (a, b) => a + b;
+    log(reduce(add, 0, [1, 2, 3, 4, 5]));
+    log(add(add(add(add(add(0, 1), 2), 3), 4), 5));
+
+    log(reduce(add, [1, 2, 3, 4, 5]))
+
+    log(
+      reduce(
+        (total_price, product) => total_price + product.price,
+        0,
+        products));
+  </script>
+
+
+  <script>
+    log("map+filter+reduce 중첩 사용과 함수형 사고 ==========");
+    // 응용
+
+    // 가격들을 뽑는 map / 특정 금액 이하의 / 를 합친
+    log(
+      reduce(
+        add,
+        map(p => p.price,
+          filter(p => p.price < 20000, products))));
+
+    log(
+      reduce(
+        add,
+        filter(n => n >= 20000,
+          map(p => p.price, products))));
+
+    // 함수를 값으로 다루면서 조합성을 높히고, 추상화 레벨을 높일 수 있다.
+    log(
+      reduce(
+        add,
+        map(p => p.price, products)));
+
+    log(
+      reduce(
+        add,
+        map(p => p.price, filter(p => p.price < 20000, products))));
+  </script>
+
+</body>
+</html>

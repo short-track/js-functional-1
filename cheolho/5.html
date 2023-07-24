@@ -1,0 +1,97 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body id="cart">
+  <script>const log = console.log;</script>
+
+  <script>
+    const curry = f =>
+        (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+        const map = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(f(a));
+      }
+      return res;
+    });
+    const filter = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a);
+      }
+      return res;
+    });
+    const reduce = curry((f, acc, iter) => {
+      // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      }
+      for (const a of iter) {
+        acc = f(acc, a);
+      }
+      return acc;
+    });
+    const go = (...args) => reduce((a, f) => f(a), args);
+    const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+  </script>
+
+  <script>
+    const products = [
+      { name: '반팔티', price: 15000, quantity: 1, is_selected: true },
+      { name: '긴팔티', price: 20000, quantity: 2, is_selected: false },
+      { name: '핸드폰케이스', price: 15000, quantity: 3, is_selected: true },
+      { name: '후드티', price: 30000, quantity: 4, is_selected: false },
+      { name: '바지', price: 25000, quantity: 5, is_selected: false }
+    ];
+
+    const add = (a, b) => a + b;
+    
+    const sum = curry((f, iter) => go(
+      iter,
+      map(f),
+      reduce(add)));
+
+    const total_quantity = sum(p => p.quantity);
+    const total_price = sum(p => p.price * p.quantity);
+    log(total_quantity(products));
+    log(total_price(products));
+    log(sum(u => u.age)([
+      { age: 10 },
+      { age: 20 },
+      { age: 30 }
+    ]));
+
+    document.querySelector('#cart').innerHTML = `
+      <table>
+        <tr>
+          <th></th>
+          <th>상품 이름</th>
+          <th>가격</th>
+          <th>수량</th>
+          <th>총 가격</th>
+        </tr>
+        ${go(products, sum(p => `
+          <tr>
+            <td><input type="checkbox" ${p.is_selected ? 'checked' : ''}></td>
+            <td>${p.name}</td>
+            <td>${p.price}</td>
+            <td><input type="number" value="${p.quantity}"></td>
+            <td>${p.price * p.quantity}</td>
+          </tr>
+        `))}
+        <tr>
+          <td colspan="3">합계</td>
+          <td>${total_quantity(filter(p => p.is_selected, products))}</td>
+          <td>${total_price(filter(p => p.is_selected, products))}</td>
+      </table>
+    `;
+  </script>
+</body>
+</html>
