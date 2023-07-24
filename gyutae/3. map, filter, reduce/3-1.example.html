@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+
+            const map = (f, iter) => {
+            let res = [];
+            for (const a of iter) {
+                res.push(f(a));
+            }
+
+            return res;
+            };
+
+            let m = new Map()
+            m.set('a',10)
+            m.set('b',20)
+            console.log(new Map(map(([k,a])=> [k, a*2] ,m )))
+    </script>
+</body>
+</html>

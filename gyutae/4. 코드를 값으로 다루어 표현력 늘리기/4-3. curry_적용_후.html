@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+
+    <script>
+        // curry 적용 후
+        const curry = (f) => (a, ..._) => 
+        _.length ? f(a, ..._) : (..._) => f(a, ..._);
+
+        //filter curry 테스트
+        const filter = curry((f, iter) => {
+            let res = [];
+            for (const p of iter) {
+                if (f(p)) res.push(p);
+            }
+            return res
+        });
+
+        const arr = [1,2,3,4,5]
+        console.log(filter((a)=>a==2)(arr))
+        console.log(filter((a)=>a==2,arr))
+        
+        //map curry 테스트
+        const map = curry((f, iter) => {
+            let res = [];
+            for (const a of iter) {
+                res.push(f(a));
+            }
+
+            return res;
+        });
+        console.log(map((a)=>a*2)(arr))
+        console.log(map((a)=>a*2,arr))
+
+
+        //reduce curry 테스트
+        const reduce = curry((f, acc, iter) => {
+            if (!iter) {
+                iter = acc[Symbol.iterator]();
+                acc = iter.next().value;
+            }
+
+            for (const a of iter) {
+                acc = f(acc, a);
+            }
+        return acc;
+        });
+
+        console.log(reduce(((a,b)=> a+b))(arr))
+        console.log(reduce((a,b)=> a+b,arr))
+
+        const go = (...args) => {
+        reduce((a, f) => f(a), args);
+        };
+
+        const add = (a,b)=> a+b
+
+        const products = [
+        { name: "1", price: 1 },
+        { name: "2", price: 2 },
+        { name: "3", price: 3 },
+        { name: "4", price: 4 },
+        { name: "5", price: 5 },
+        ];
+        const mult = curry((a, b) => a * b);
+
+        //combo curry 적용 전
+        go(
+        products,
+        (products) => filter((p) => p.price < 20000, products),
+        (products) => map((p) => p.price, products),
+        (prices) => reduce(add, prices),
+        console.log
+        );
+
+
+        //combo curry 적용 전
+        go(
+        products,
+        filter((p) => p.price < 20000),
+        map((p) => p.price),
+        reduce(add),
+        console.log
+        );
+    
+    </script>
+</head>
+<body>
+    
+</body>
+</html>
