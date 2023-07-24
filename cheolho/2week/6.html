@@ -9,7 +9,249 @@
 </head>
 <body>
   <script>const log = console.log;</script>
+  <script>
+    const curry = f =>
+    (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+const map = curry((f, iter) => {
+  let res = [];
+  iter = iter[Symbol.iterator]();
+  let cur;
+  while (!(cur = iter.next()).done) {
+    const a = cur.value;
+    res.push(f(a));
+  }
+  return res;
+});
+const filter = curry((f, iter) => {
+  let res = [];
+  iter = iter[Symbol.iterator]();
+  let cur;
+  while (!(cur = iter.next()).done) {
+    const a = cur.value;
+    if (f(a)) res.push(a);
+  }
+  return res;
+});
+const reduce = curry((f, acc, iter) => {
+  // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
+  if (!iter) {
+    iter = acc[Symbol.iterator]();
+    acc = iter.next().value;
+  } else {
+    iter = iter[Symbol.iterator]();
+  }
+  while (!(cur = iter.next()).done) {
+    const a = cur.value;
+    acc = f(acc, a);
+  }
+  return acc;
+});
+const go = (...args) => reduce((a, f) => f(a), args);
+const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+</script>
+
+  ## range
+  <script>
+    log('range');
+
+    const add = (a, b) => a + b;
+    const range = l => {
+      let i = -1;
+      let res = [];
+      while (++i < l) {
+        res.push(i);
+      }
+      return res;
+    };
+  
+    var list = range(4);
+    log(list);
+    // log(reduce(add, list));
+  </script>
+
+  ## 느긋한 L.range
+  <script>
+    log('느긋한 L.range');
+    const L = {};
+    // 제너레이터 활용
+    L.range = function *(l) {
+      var i = -1;
+      while (++i < l) {
+        yield i;
+      }
+    };
+  
+    var list = L.range(4);
+    // 여기까진 평가되지 않음
+    log(list);
+    // 이터레이터: L.range {<suspended>}
+      
+    // log(reduce(add, list));
+    // range: reduce에 list를 전달하기 전에 이미 배열을 만든 상태
+    // L.range: 이터레이터 내부를 순휘할 때 마다 하나씩 값이 평가된다. 2번만 하면 2번만 평가됨
+    log(list.next().value);
+    log(list.next().value);
+
+
+    // range: array를 만들어 놓은 상태에서 진행
+    // L.range: array를 만들어 놓지 않고 필요할 때마다 값을 꺼내서 진행 (느긋한 평가)
+  </script>
+
+  # range와 느긋한 L.rnage테스트
+  <script>
+    function test(name, time, f) {
+      console.time(name);
+      while (time--) f();
+      console.timeEnd(name);
+    }
+
+    // 많은 차이가 있진 않음
+    // range: 272.072998046875 ms
+    // test('range', 10, () => reduce(add, range(1000000)));
+    // L.range: 235.567138671875 ms
+    // test('L.range', 10, () => reduce(add, L.range(1000000)));
+  </script>
+
+  ## take
+  <script>
+    console.clear();
+    console.log('take');
+    const take = curry((l, iter) => {
+      let res = [];
+      iter = iter[Symbol.iterator]();
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        res.push(a);
+        if (res.length == l) return res;
+      }
+      return res;
+    });
+
+    console.time('');
+    go(
+      range(10000),
+      take(5),
+      reduce(add),
+      log
+    );
+    console.timeEnd('');
+    
+    // 최대 100000개 중 5개 값만 만들기 때문에 훨씬 효율적.  2.549072265625 ms 0.10791015625 ms
+    console.time('');
+    go(
+      L.range(10000),
+      take(5),
+      reduce(add),
+      log
+    );
+    console.timeEnd('');
+    
+  </script>
+
+  # 이터러블 중심 프로그래밍에서의 지연 평가 (Lazy Evaluation)
+  - 제때 계산법
+  - 느긋한 계산법
+  - 제너레이터/이터레이터 프로토콜 기반으로 구현
+    = 이전에도 지연평가 구현이 가능은 했지만 표준이 아니었음
+
+  ### L.map
+  <script>
+    log('L.map');
+    L.map = function *(f, iter) {
+      iter = iter[Symbol.iterator]();
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        yield f(a);
+      }
+    };
+
+    var it = L.map(a => a + 10, [1, 2 , 3]);
+    log(it.next());
+    log(it.next());
+    log(it.next());
+  </script>
+
+  ### L.filter
+  <script>
+    log('L.filter');
+    
+
+    L.filter = function *(f, iter) {
+      iter = iter[Symbol.iterator]();
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        if (f(a)) yield a;
+      }
+    };
+
+    var it = L.filter(a => a % 2, [1, 2, 3, 4]);
+    log(it.next());
+    log(it.next());
+  </script>
+
+  ### map, filter 계열 함수들이 가지는 결합 법칙
+  
+  - 사용하는 데이터가 무엇이든지
+  - 사용하는 보조 함수가 순수 함수라면 무엇이든지
+  - 아래와 같이 결합한다면 둘 다 결과가 같다
+  [[mapping, mapping], [filtering, filtering], [mapping, mapping]]
+
 
   
+  ## range, map, filter, take, reduce 중첩 사용
+  <script>
+    log('range, map, filter, take, reduce 중첩 사용');
+
+    go(range(10),
+      map(n => n + 10),
+      filter(n => n % 2),
+      take(2),
+      log);
+
+    // range 인자 10
+    // - while 안쪽 i=0; -> i=1; ~ i=9; -> i=10; -> while 종료
+    // - res: [0, ~, 9]
+    
+    // map: ragne 결과가 그대로 인자로
+    // - iter가 iter[Symbol.iterator]()를 통해 Array iterator 바뀜
+    // - while 안쪽
+    //   - next를 통해 꺼낸 값에 대해 f(a) 실행
+    // - res: [10, 11 ~, 19]
+
+    // filter: map 결과가 그대로 인자로
+    // - iter가 iter[Symbol.iterator]()를 통해 Array iterator 바뀜 
+    // - while 안쪽
+    //   - next를 통해 꺼낸 값에 대해 f(a) 실행
+    // - res: [11, 13, 15, 17, 19]
+
+    // take: filter 결과가 그대로 인자로
+    // - iter가 iter[Symbol.iterator]()를 통해 Array iterator 바뀜 
+    // while:
+    //   - next를 통해 꺼낸 값에 대해 res에 push
+    //   - limit에 도달하면 res 리턴
+    // - res: [11, 13]
+  </script>
+
+  ## 평가순서가 상관없는 함수형 프로그래밍의 장점
+  ## L.ragne, L.map, L.filter, take, reduce 중첩 사용
+  <script>
+    L.map = curry(function *(f, iter) {
+      for (const a of iter) yield f(a);
+    });
+    L.filter = curry(function *(f, iter) {
+      for (const a of iter) if (f(a)) yield a;
+    });
+
+    go(range(10),
+      L.map(n => n + 10),
+      L.filter(n => n % 2),
+      take(2),
+      log);
+  </script>
+  </script>
+
 </body>
 </html>
