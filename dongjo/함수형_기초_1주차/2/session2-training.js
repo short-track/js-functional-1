@@ -91,22 +91,22 @@ log(iter3.next());
 log(iter3.next());
 log(iter3.next());
 
-log("*****************************************")
+log("getDivisor*****************************************")
 function* infinity(i = 0) {
     while (true) yield i++;
 }
 function* getDivisor(num) {
     for (const n of infinity(1)) {
-        if (num == n) return n;
+        if (num < n) return n;
         if (num % n == 0) yield n;
     }
 }
 
-let iter5 = getDivisor(10);
-log(iter5.next());
-log(iter5.next());
-log(iter5.next());
-log(iter5.next());
+for(const a of getDivisor(10)) log(a);
+// log(iter5.next());
+// log(iter5.next());
+// log(iter5.next());
+// log(iter5.next());
 // let iter4 = gen(isPrime);
 // log(iter4.next());
 // log(iter4.next());

@@ -3,11 +3,11 @@ import { map, reduce, go, pipe, curry, filter } from './../common.js'
 const log = console.log
 
 const products = [
-    { name: '반팔티', price: 15000, quantity: 1 },
-    { name: '긴팔티', price: 20000, quantity: 2 },
-    { name: '핸드폰케이스', price: 15000, quantity: 3 },
-    { name: '후드티', price: 30000, quantity: 4 },
-    { name: '바지', price: 25000, quantity: 5 }
+    {name: '반팔티', price: 15000, quantity: 1, is_selected: true},
+    {name: '긴팔티', price: 20000, quantity: 2, is_selected: false},
+    {name: '핸드폰케이스', price: 15000, quantity: 3, is_selected: true},
+    {name: '후드티', price: 30000, quantity: 4, is_selected: false},
+    {name: '바지', price: 25000, quantity: 5, is_selected: false}
 ];
 
 // 총 수량
@@ -28,7 +28,6 @@ const products = [
 
 // log(get_price(products));
 
-log("=====================================")
 
 // 추상화 레벨이 더 높음
 const sum = curry((fn, iter) => go(
@@ -37,7 +36,10 @@ const sum = curry((fn, iter) => go(
     reduce((a, b) => a + b)));
 
 const get_total_quantity = sum(p => p.quantity);
-const get_total_price = sum(p => p.price * p.quantity,);
+const get_total_price = sum(p => p.price * p.quantity);
+
+log(filter(p => p.is_selected, products))
+
 
 document.querySelector('#cart').innerHTML = `
     <table>

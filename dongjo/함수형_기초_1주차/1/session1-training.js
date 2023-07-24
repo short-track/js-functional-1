@@ -30,13 +30,13 @@
 
 // 객체는 이터러블이 아니다
 // TypeError: rules is not iterable
-const rules1 = {
-    "출석": "참석하기",
-    "학습": "결과물 제출하기",
-};
-for (const obj of rules1) {
-    console.log(obj);
-}
+// const rules1 = {
+//     "출석": "참석하기",
+//     "학습": "결과물 제출하기",
+// };
+// for (const obj of rules1) {
+//     console.log(obj);
+// }
 
 /*
     [정리 4]
@@ -57,12 +57,14 @@ for (const obj of rules1) {
 const rules2 = {
     "출석": "참석하기",
     "학습": "결과물 제출하기",
+    "학습2": "결과물 제출하기",
     [Symbol.iterator]() {
         const keys = Object.keys(this);
-        let size = keys.length - 1;
+        const values = Object.values(this);
+        let idx = 0;
         return {
             next() {
-                return size < 0 ? {done: true} : {value: keys[size--], done: false};
+                return idx > keys.length - 1 ? {done: true} : {value: rules2[keys[idx++]], done: false};
             },
             [Symbol.iterator]() {
                 return this;
@@ -90,10 +92,11 @@ for (const obj of rules2) {
     - 학습 출석
 */
 let iter = rules2[Symbol.iterator]();
+console.log(iter.length)
 console.log(Symbol.iterator in iter)
-for (const a of iter) {
-    console.log(a);
-}
+// for (const a of iter) {
+//     console.log(a);
+// }
 
 // 추가로 참고한 블로그
 // https://poiemaweb.com/es6-iteration-for-of
