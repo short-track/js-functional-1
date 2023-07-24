@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js #4</title>
+  <style>
+  </style>
+</head>
+<body>
+  <script>
+    // previous...
+    const log = console.log;
+    const products = [
+      {name: '반팔티', price: 15000},
+      {name: '긴팔티', price: 20000},
+      {name: '핸드폰케이스', price: 15000},
+      {name: '후드티', price: 30000},
+      {name: '바지', price: 25000}
+    ];
+    
+    const map = (f, iter) => {  
+      let res = [];
+      for (const a of iter) {
+         res.push(f(a));
+      }
+     return res;
+    };
+    const filter = (f, iter) => { 
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a); 
+      }
+      return res;
+    };
+    const reduce = (f, acc, iter) => { 
+      if (!iter) {   
+        iter = acc[Symbol.iterator](); 
+        acc = iter.next().value;   
+      }
+      for (const a of iter) {
+        acc = f(acc, a); 
+      }
+      return acc;
+    };
+    const add = (a, b) => a + b;
+    </script>
+  <script>
+
+//#코드를 값으로 다루어 표현력 높이기
+
+    //1. go() =  reduce()를 이용해서 함수 축약하기
+    const go = (...args) => reduce((a,f)=> f(a), args);
+    go(
+      0,
+      a => a + 1, 
+      a => a + 10,
+      a => a + 100,
+      log
+    ); //111
+
+    //2. pipe() = 함수를 인자로 받아서 함수를 리턴하는 함수 (go를 인자로 받아보자)
+    const pipe1 = (...fs) => (a) => go(a, ...fs); //함수들을 받고, 인자를 나중에 입력하는 형태 
+    const f1 = pipe1(
+      a => a + 1, 
+      a => a + 10,
+      a => a + 100
+    );
+    log(f1(0));//111
+
+    //pipe1에서 초기값세팅할때, 함수를 인자로 넣을 수 있도록 기능추가
+    const pipe2 = (f, ...fs) => (...as) => go(f(...as), ...fs);  
+    //pipe2의 첫번째 인자에 있는 함수는 as인자들을 받아서 초기값 세팅함 
+    const f2 = pipe2(
+      (a,b) => a + b,
+      a => a + 10,
+      a => a + 100
+    );
+    log(f2(0, 1)); //111   pipe2내부로는 인자 여러개 보냄
+
+    //3. go로 읽기좋은 코드 만들기
+    go(
+      products,
+      products => filter(p => p.price < 20000, products),  //1.filter하고나서
+      products => map(p => p.price, products),             //2.map하고나서
+      prices => reduce(add, prices),                       //3.reduce함 => 가독성 좋아짐 
+      log
+      );
+
+    //4. curry() = 함수를 받아서 함수를 리턴 (인자로 받은 함수를 내가 원하는 시점에 평가하기)
+    const curry = (f) => (a, ...fs) => fs.length? f(a, ...fs) : (...fs) => f(a, ...fs);
+                //내부에서 f가 사용할 인자를 대신 받음 
+                //fs.length? 는 인자가 2개이상 들어왔니!?체크 (fs.length가 1이상이면 인자가 2이상인 것)
+                //인자 2개 이상이면 f실행, 인자 2개 이하이면 fs를 다시 인자로 f에 전달해서 함수값리턴
+    
+    const multi = curry((a, b)=> a * b);
+ 
+      log(multi(1));   //(...fs) => f(a, ...fs)
+      log(multi(3)(2)) //multi(3)까지만 실행되면 조건문이 false가 되어 인자(...fs)를 다시 보낼 수 있음(커링됨)
+      log(multi(3,2))  //6 이건 조건문이 true일 때 curry의 인자인 콜백을 바로 실행 
+
+    const multiCurryisfalse = multi(3);
+      log(multiCurryisfalse(10));//30
+      log(multiCurryisfalse(5)); //15
+      log(multiCurryisfalse(3)); //9
+    
+      //map, filter, reduce에 curry를 적용해보자 => 인자를 1개 받으면(조건문false됨), 추가로 인자를 받길 대기함
+      const mapCurry = curry((f, iter) => {  
+      let res = [];
+      for (const a of iter) {
+       res.push(f(a));
+      }
+     return res;
+    });
+    const filterCurry = curry((f, iter) => { 
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a); 
+      }
+      return res;
+    });
+    const reduceCurry = curry((f, acc, iter) => { 
+      if (!iter) {   
+        iter = acc[Symbol.iterator](); 
+        acc = iter.next().value;   
+      }
+      for (const a of iter) {
+        acc = f(acc, a); 
+      }
+      return acc;
+    });
+
+    // 3번의 go(...)리팩토링
+
+      //기존코드 (go쓰기전)
+      log(
+        reduce(
+            add,
+            map(p => p.price,
+            filter(p => p.price < 20000, products))
+            )
+         );
+      //step1(go+curry적용)
+    go(
+      products,
+      products => filterCurry((p) => p.price < 20000)(products),  //filterCurry()();형태로 작성가능
+      products => mapCurry((p) => p.price)(products),   
+      prices => reduceCurry(add)(prices),                       
+      log
+      );//30000 같은 결과
+
+      //step2(go+curry의 성격 이용해서 축약)
+      go(                                   //go는 
+        products,                           //첫번째인자를 
+        filterCurry((p) => p.price < 20000),//다음함수에 전달하기 때문에 생략가능해짐
+        mapCurry((p) => p.price),   
+        reduceCurry(add),                       
+        log
+      );
+
+      //step3
+      const total_price = pipe2(  //중복을 제거하기 위한 pipe()
+                            mapCurry(p => p.price),
+                            reduceCurry(add)
+                            );
+      go(                                   
+        products,                           
+        filterCurry((p) => p.price < 20000),
+        total_price,                  //중복 제거      
+        log
+      );
+
+      const base_total_price = predi => pipe2(   //predi함수 받아서 
+                                          filterCurry(predi), //Curry+filter에 인자로 전달 
+                                          total_price
+                                          );
+      go(
+        products,
+        base_total_price(p => p.price < 20000), 
+        log
+        );
+  </script>
+</body>
+</html>

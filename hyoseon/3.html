@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js #3</title>
+  <style>
+  </style>
+</head>
+<body>
+  
+  <script>
+    const log = console.log;
+    const products = [
+      {name: '반팔티', price: 15000},
+      {name: '긴팔티', price: 20000},
+      {name: '핸드폰케이스', price: 15000},
+      {name: '후드티', price: 30000},
+      {name: '바지', price: 25000}
+    ];
+
+    let productNames = [];
+    for(const product of products){
+      productNames.push(product.name);
+    }
+    log(productNames); //['반팔티', '긴팔티', '핸드폰케이스', '후드티', '바지']
+    
+//# 1. map()
+    //위와 같은 로직을 사용하기 위해 Array.prototype.map()을 사용
+    //다만, 어떤 값을 리턴할지에 대해 함수를 받는 것으로 추상화 함
+    //Array.prototype.map()구현해보기
+    const map = (f, iter) => {   //콜백함수와 이터러블을 인자로 받음
+    let res = [];
+    for (const a of iter) {
+      res.push(f(a));
+    }
+    return res;
+  };
+
+    //만든 map()을 이용해서 products.name 리턴하기 
+    log(map((p)=> p.name, products));//['반팔티', '긴팔티', '핸드폰케이스', '후드티', '바지']
+
+
+    // ##1-1) 이터러블 프로토콜을 따른 map의 다형성 (1)
+
+    //log(document.querySelectorAll('*').map((item)=> item))
+    //위의 Array.prototype.map()이 에러나는 이유는 document.querySelectorAll('*').prototype에 map()이 없어서
+
+    log(map(el=> el.nodeName, document.querySelectorAll('*'))); 
+    //['HTML', 'HEAD', 'META', 'META', 'META', 'TITLE', 'STYLE', 'BODY', 'SCRIPT']
+    //만든 map()함수로는 작동함 => document.querySelectorAll('*')가 iterable이기 때문에
+    //webAPIs에 있는 헬퍼함수들은 거의 iterable하기 때문에 다형성이 좋음
+    const it = document.querySelectorAll('*')[Symbol.iterator]();
+    log(it);//Array Iterator {}
+
+    function* gen() {
+      yield 2;
+      if (false) yield 3;
+      yield 4;
+    }
+    log(map(a => a * a, gen()));  //[4, 16]
+
+// ##1-2) 이터러블 프로토콜을 따른 map의 다형성 (2)
+    let m = new Map();
+    m.set('a', 10);
+    m.set('b', 20);
+    log(m);//{'a' => 10, 'b' => 20 }; m도 iterable
+    const it2 = m[Symbol.iterator]();
+    log(it2);//MapIterator
+
+//# 2. filter
+    let under20000 = [];
+    for (const p of products) {
+      if (p.price < 20000) under20000.push(p); //가격이 20000이하인것만 리턴
+    }
+    log(...under20000);
+
+    const filter = (f, iter) => { //함수와 iterable을 인자로 받음 
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a); //조건 부분을 함수로 추상화
+      }
+      return res;
+    };
+    log(...filter(p => p.price < 20000, products));
+    log(filter(n => n % 2, function* () { //[1, 3, 5]; 제너레이터 함수는 iterable
+      yield 1;
+      yield 2;
+      yield 3;
+      yield 4;
+      yield 5;
+    }()));
+  
+//# 3. reduce()
+    const nums = [1,2,3,4,5];
+    // nums를 모두 더해보자
+    let total = 0;
+    for(const n of nums){
+        total += n;
+    }
+    log(total); // 15
+
+    //reduce의 로직 
+    const add = (a, b) => a + b;
+    log(add(add(add(add(add(0, 1), 2), 3), 4), 5)); // 15
+    
+    //reduce()를 만들어보자
+    const reduce = (f, acc, iter) => { //콜백함수, 축적값, iterable을 인자로 받음
+      if (!iter) {    //인자가 2개만 들어오면
+      iter = acc[Symbol.iterator](); //2번째 인자의 iterator를 3번째 인자로 지정
+      acc = iter.next().value;       //중앙 인자값을 iterator.next().value로 지정
+    }
+    for (const a of iter) {
+      acc = f(acc, a);     //어떻게 축약할지를 콜백함수로 추상화
+    }
+    return acc;
+    }
+    log(reduce(add, [1, 2, 3, 4, 5]));// 15 
+    //reduce()의 두번째 인자로 받은 배열이 조건문에 의해 맨앞부터 next()실행되어 acc가 됨
+
+    log(reduce(
+          (acc, cur)=> acc + cur.price,
+          0,
+          products));  //105000 products의 price를 모두 더함
+
+
+//# 4. map() + filter() + reduce()중첩사용과 함수형 사고 
+
+  log(
+    reduce(                                        //reduce실행 30000리턴
+      add,                                         //add함수로 동작하도록 
+      map(p => p.price,                            //price만 뽑아서 [15000, 15000]로 리턴 
+        filter(p => p.price < 20000, products)))); //products에서 20000미만의  [{…}, {…}] 리턴 
+  
+  log(
+    reduce(                                  //75000
+      add,
+      filter(n => n >= 20000,               //[20000, 30000, 25000]
+        map(p => p.price, products))));     //[15000, 20000, 15000, 30000, 25000]
+
+
+  //함수형 사고 : 함수가 리턴할 값을 예측하면서 코드 작성하기
+
+  </script>
+</body>
+</html>
