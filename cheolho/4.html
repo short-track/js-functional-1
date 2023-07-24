@@ -1,0 +1,141 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+  <script>const log = console.log;</script>
+
+  <script>
+    const curry = f =>
+      (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+
+    const products = [
+      { name: '반팔티', price: 15000 },
+      { name: '긴팔티', price: 20000 },
+      { name: '핸드폰케이스', price: 15000 },
+      { name: '후드티', price: 30000 },
+      { name: '바지', price: 25000 }
+    ];
+    const map = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(f(a));
+      }
+      return res;
+    });
+    const filter = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a);
+      }
+      return res;
+    });
+    const reduce = curry((f, acc, iter) => {
+      // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      }
+      for (const a of iter) {
+        acc = f(acc, a);
+      }
+      return acc;
+    });
+    const add = (a, b) => a + b;
+  </script>
+
+  # 코드를 값으로 다루어 표현력 높이기
+  ## go, pipe
+  <script>
+    log("go");
+    const go = (...args) => reduce((a, f) => f(a), args);
+
+    go(
+      add(0, 1),
+      a => a + 1,
+      a => a + 10,
+      a => a + 100,
+      log);
+    // 111
+
+    log("pipe");
+    // 함수를 리턴하는 함수
+    const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    const f = pipe(
+      (a, b) => a + b,
+      a => a + 10,
+      a => a + 100);
+
+    log(f(0, 1));
+    // 111
+  </script>
+
+  ## 표현력 좋게 만들기
+  <script>
+    log("표현력 좋게 만들기");
+
+    // log(
+    //   reduce(
+    //     add,
+    //     map(p => p.price,
+    //       filter(p => p.price < 20000, products))));
+    
+    // 간결하진 않지만 위에서부터 아래로 읽을 수 있도록 표현되어 읽기는 더 편해짐
+    go(
+      products,
+      products => filter(p => p.price < 20000, products),
+      products => map(p => p.price, products),
+      prices => reduce(add, prices),
+      log);
+  </script>
+
+## curry
+  <script>
+    log("curry");
+
+    const mult = curry((a, b) => a * b);
+    log(mult(3)(2));
+    
+    const mult3 = mult(3);
+    log(mult3(10));
+    log(mult3(5));
+    log(mult3(3));
+
+    // filter, map, reduce에 curry 적용하여 보다 간결하게
+    go(
+      products,
+      filter(p => p.price < 20000),
+      map(p => p.price),
+      reduce(add),
+      log);
+  </script>
+
+  ## 함수 조합으로 함수 만들기
+  <script>
+    log("함수 조합으로 함수 만들기");
+    const total_price = pipe(
+      map(p => p.price),
+      reduce(add));
+    
+    const base_total_price = predi => pipe(
+      filter(predi),
+      total_price,
+    );
+
+    go(
+      products,
+      base_total_price(p => p.price < 20000),
+      log);
+
+    go(
+      products,
+      base_total_price(p => p.price >= 20000),
+      log);
+  </script>
+</body>
+</html>
