@@ -1,4 +1,4 @@
-const { reduce } = require('../weekend-1/lib')
+const { reduce } = require('../lib')
 const add = (a, b) => a + b;
 // range 메서드를 구현
 // l을 인자로 받고 0부터 l - 1까지의 정수를 배열에 담아서 반환
