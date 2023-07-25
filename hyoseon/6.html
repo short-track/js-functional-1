@@ -9,8 +9,180 @@
   </style>
 </head>
 <body>
-  
   <script>
+    const log = console.log;
+
+    const curry = f =>
+      (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+
+    const map = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(f(a));
+      }
+      return res;
+    });
+
+    const filter = curry((f, iter) => {
+      let res = [];
+      for (const a of iter) {
+        if (f(a)) res.push(a);
+      }
+      return res;
+    });
+
+    const reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      }
+      for (const a of iter) {
+        acc = f(acc, a);
+      }
+      return acc;
+    });
+
+    const go = (...args) => reduce((a, f) => f(a), args);
+    const add = (a, b) => a + b;
   </script>
+    <script>
+      //#지연성
+
+
+          //1. range와 느긋한 L.range
+            //1-1. range() : [] => iterable => 순회 
+            const range = length => {
+              let i = -1;
+              let res = [];
+              while (++i < length) {
+                //log("range"+i);//reduce를 실행하지 않아도 i 출력됨 => range()실행시 즉시평가 
+                res.push(i);
+              }
+            return res;
+            };
+            log(range(5));//[0, 1, 2, 3, 4] <=배열
+            log(reduce(add, (range(5))));//10
+      
+            //1-2. 느긋한 L.range() : iterable => 순회
+            const L = {};
+            L.range = function* (length) {
+              let i = -1;
+               while (++i < length) {
+                  //log("L.range"+i); //reduce를 실행하지 않으면 i가 출력되지 않음 
+                  //next()를 실행해야 평가됨 => 내부의 값을 순회해야만 평가됨 => 지연평가 
+                  yield i;
+                }
+            };
+            log(L.range(5)); //L.range {<suspended>} <=이터레이터 
+            //log(reduce(add, L.range(5))); //10
+      
+
+
+
+          //2. range와 느긋한 L.range test
+            function test(name, time, f) {
+              console.time(name);
+              while (time--) f();
+                console.timeEnd(name);
+            }
+      
+      test('range', 10, () => reduce(add, range(1000000))); // range: 547.364013671875 ms
+      test('L.range', 10, () => reduce(add, L.range(1000000)));//L.range: 306.251220703125 ms
+      //test해보니 L.range가 빠르고 효율적!
+
+
+          //3. take
+              const take = (limit, iter) => {
+                let res = [];
+                for (const a of iter) {
+                  res.push(a);        
+                  if (res.length == limit) return res;//limit까지만 리턴하도록 함
+                }
+              return res;
+              };
+
+            console.time("");
+            log(take(5, range(100)));//[0, 1, 2, 3, 4]  <= [0, ...,99]까지의 range(100)을 5개로 자름
+            //range(Infinity) 안괜찮음 
+            console.timeEnd("");   //0.229248046875 ms
+      
+            console.time("");
+            log(take(5, L.range(100)));//[0, 1, 2, 3, 4]  
+            //L.range(Infinity)괜찮음 
+            console.timeEnd("");     //0.10791015625 ms
+      
+            //위 log와 timetest를 go()로 표현해보기
+            console.time('');
+
+            //take()에 curry적용하기 
+            const takeCurry = curry((l, iter) => {
+              let res = [];
+              for (const a of iter) {
+                res.push(a);
+                if (res.length == l) return res;
+              }
+              return res;
+            });
+
+            go(
+              range(10000), //[...]이미 평가된 값 
+              takeCurry(5), //limit까지 짜르고 
+              reduce(add), //reduce실행
+              log);
+            console.timeEnd('');
+      
+            console.time('');
+            go(
+              L.range(10000), //iterable은 연산을 만났을때 평가 
+              takeCurry(5),  // limit까지 짜르고
+              reduce(add),   //reduce실행
+              log);
+            console.timeEnd('');
+            
+
+
+          //4. 제너레이터/ 이터레이터 프로토콜로 구현하는 지연평가
+            
+            /* 
+            이터러블 중심 프로그래밍에서의 지연 평가 (Lazy Evaluation)
+                - 지연평가 ? 영리하게 계산하기(제때 계산법) , 느긋하게 계산하기
+
+                - 제너레이터/이터레이터 프로토콜을 기반으로 구현 (ES6)
+            */
+      
+        //L.map
+            L.map = function *(f, iter) {
+               for (const a of iter) yield f(a);
+            };
+      
+            let iterMap = L.map(a => a + 10, [1, 2, 3]);
+            // log(it.next()); next()로 평가해야만 값을 얻을수 있음 
+            // log(it.next());
+            // log(it.next());
+            //log([...iterMap]);  [11,12,13]
+            //log([iterMap.next().value]) [11] 스프레드 연산자로 next()를 모두 순회하지 않으면 가능
+      
+        //L.filter
+            L.filter = function *(f, iter) {
+               for (const a of iter) if (f(a)) yield a; //f(a)가 true일때만 반환
+            };
+            let iterFilter = L.filter(a => a % 2, [1, 2, 3, 4]); //1,3
+             //log(iterFilter.next()); {value: 1, done: false}
+             //log(iterFilter.next()); {value: 3, done: false}
+             //log(iterFilter.next()); {value: undefined, done: true}
+      
+        //5. 즉시평가(range, map, filter, take, reduce)의 중첩사용
+            
+        //6. 지연평가(L.map, L.range, L.filter, take)의 평가 순서 
+      
+        //7. 엄격한 게산과 느긋한 계산의 효율성 비교 
+      
+        //8. map, filter계열 함수들이 가지는 결합 법칙
+      
+        //9. ES6기본 규약을 통해 구현되는 지연평가의 장점 
+      
+        </script>
+      
+        
 </body>
 </html>
