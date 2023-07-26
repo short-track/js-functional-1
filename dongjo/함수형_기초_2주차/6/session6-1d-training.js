@@ -1,4 +1,4 @@
-import { map, reduce, go, pipe, curry, filter } from './../common.js'
+import { map, reduce, go, pipe, curry, filter } from '../common.js'
 const log = console.log;
 
 /*
