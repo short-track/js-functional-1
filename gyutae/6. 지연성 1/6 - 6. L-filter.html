@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script type="text/javascript" src="fx.js"></script>
+    <script>
+        L.filter = function* (f, iter) {
+        for (const a of iter) {
+            if (f(a)) yield a;
+        }
+        };
+        var it = L.filter((a) => a % 2, [1, 2, 3]);
+        console.log(it.next()); //1
+        console.log(it.next()); //3
+        console.log(it.next()); //done true
+
+        var it2 = L.filter((a) => a % 2, [1, 2, 3]);
+        console.log(...it2)
+    </script>
+</body>
+</html>
