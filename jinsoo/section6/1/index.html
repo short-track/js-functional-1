@@ -44,4 +44,36 @@
 
     test('range', 10, () => reduce(add, range(10000000)));
     test('L.range', 10, () => reduce(add, L.range(10000000)));
+    console.clear();
+</script>
+
+
+## take
+
+<script>
+    const take = curry((l, iter) => {
+        let res = [];
+        for (const a of iter) {
+            res.push(a);
+            if (res.length == l) return res;
+        }
+        return res;
+    });
+
+    // L.range를 사용하면 range를 10000개를 만들지 않고 필요한 만큼만 만들기 때문에 휠씬 효율적 
+    console.time('');
+    go(
+        range(10000),
+        take(5),
+        reduce(add),
+        log);
+    console.timeEnd('');
+
+    console.time('');
+    go(
+        L.range(10000),
+        take(5),
+        reduce(add),
+        log);
+    console.timeEnd('');
 </script>
