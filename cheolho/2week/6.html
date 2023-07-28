@@ -250,8 +250,45 @@ const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
       L.filter(n => n % 2),
       take(2),
       log);
-  </script>
+
+    // 굉장히 다른 순서로 평가된다
+    
+    // take 함수 먼저 -> iter에 Generator(well-formed iterator)가 들어옴, 
+    // take.while 안쪽으로 들어가면 iter.next() 를 통해 filter로 들어감
+    // filter.while 안쪽으로 들어가면 iter.next() 를 통해 map으로 들어감
+    // map.while 안쪽으로 들어가면 iter.next() 를 통해 range로 들어감
+    // range는 for of 문으로 돌면서 yield로 값을 하나씩 꺼냄. 다시 map으로 돌아감
+    // 역순으로 다시 돌아가면서 take.while 안쪽에서 res에 push: take(map(filter(range yield)))
+
+    // 즉시평가는 배열 전체를 평가하면서 순회하는 반면 (가로로 모든 값을 평가)
+    // [0, 1, 2, 3, 4, 5, 6, 7, 8...]
+    // [10, 11, 12, ...]
+    // [11, 13, 15, ...]
+    // [11, 13]
+
+    // 지연평가는 하나씩 꺼내서 위에서 아래로 평가 (세로로 하나씩 평가)
+    // 0       1
+    // 10      11
+    // false   true
+
+    // range(100000)....take(2)를 하면 100000개가 평가되고 take에서 2개를 꺼내옴
+    // L.range(100000)....take(2)를 하면 2개만 평가됨
+    console.time('L');
+    go(range(Infinity),
+      L.map(n => n + 10),
+      L.filter(n => n % 2),
+      take(2),
+      log);
+    console.timeEnd('L');
   </script>
 
+  즉시평가: [[mapping, mapping], [filtering, filtering], [mapping, mapping]]
+  = 
+  지연평가: [[mapping, filtering, mapping], [mapping, filtering, mapping]]
+
+  
+  <script>
+
+  </script>
 </body>
 </html>
