@@ -32,7 +32,6 @@ L.map = curry(function *(f, iter) {
 
 L.filter = curry(function *(f, iter) {
     for (const a of iter) {
-        console.log('filter')
         if (f(a)) {
             yield a;
         }
@@ -42,7 +41,6 @@ L.filter = curry(function *(f, iter) {
 const take = curry((l, iter) => {
     let res = [];
     for (const a of iter) {
-        console.log('take')
         res.push(a);
         if (res.length == l) return res;
     }
