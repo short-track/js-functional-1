@@ -28,20 +28,25 @@
 <script>
   const go = (...args) => reduce((a, f) => f(a), args);
   const pipe =
-    (f, ...fs) =>
-    (...as) =>
+    (
+      f,
+      ...fs // 첫번째 함수를 앞으로 뺌
+    ) =>
+    (
+      ...as // 인자 여러개
+    ) =>
       go(f(...as), ...fs);
 
   go(
-    add(0, 1),
+    add(0, 1), // 인자가 두 개 있는 함수
+    (a) => a + 1,
     (a) => a + 10,
     (a) => a + 100,
     log
   );
-  // 111
 
   const f = pipe(
-    (a, b) => a + b,
+    (a, b) => a + b, // 인자를 두 개 전달받을 수 있도록 구성
     (a) => a + 10,
     (a) => a + 100
   );
@@ -62,6 +67,7 @@
     )
   );
 
+  // ** go를 사용하여 읽기 좋은 코드로 만들기
   go(
     products,
     (products) => filter((p) => p.price < 20000, products),
