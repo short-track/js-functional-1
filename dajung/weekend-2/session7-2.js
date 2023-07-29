@@ -72,3 +72,4 @@ console.log(it1.next()) // { value: 6, done: false }
 console.log(flatMap(L.range, [1, 2, 3]))
 console.log(flatMap(range, map(a => a + 1, [1, 2, 3])))
 
+
