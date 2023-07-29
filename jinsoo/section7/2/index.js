@@ -1,4 +1,4 @@
-const { L, curry, filter, reduce, go, pipe, range, take } = require('./fx');
+const { L, curry, reduce, go, pipe, range, take } = require('./fx');
 const log = console.log;
 
 //* L.map + take로 map 만들기
