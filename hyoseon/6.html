@@ -15,7 +15,7 @@
     const curry = f =>
       (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
 
-    const map = curry((f, iter) => {
+    let map = curry((f, iter) => {
       let res = [];
       for (const a of iter) {
         res.push(f(a));
@@ -23,7 +23,7 @@
       return res;
     });
 
-    const filter = curry((f, iter) => {
+    let filter = curry((f, iter) => {
       let res = [];
       for (const a of iter) {
         if (f(a)) res.push(a);
@@ -31,7 +31,7 @@
       return res;
     });
 
-    const reduce = curry((f, acc, iter) => {
+    let reduce = curry((f, acc, iter) => {
       if (!iter) {
         iter = acc[Symbol.iterator]();
         acc = iter.next().value;
@@ -42,7 +42,7 @@
       return acc;
     });
 
-    const go = (...args) => reduce((a, f) => f(a), args);
+    let go = (...args) => reduce((a, f) => f(a), args);
     const add = (a, b) => a + b;
   </script>
     <script>
@@ -92,7 +92,7 @@
 
 
           //3. take
-              const take = (limit, iter) => {
+              let take = (limit, iter) => {
                 let res = [];
                 for (const a of iter) {
                   res.push(a);        
@@ -144,9 +144,8 @@
           //4. 제너레이터/ 이터레이터 프로토콜로 구현하는 지연평가
             
             /* 
-            이터러블 중심 프로그래밍에서의 지연 평가 (Lazy Evaluation)
+            이터러블 중심 프로그래밍에서의 지연 평가란? (Lazy Evaluation)
                 - 지연평가 ? 영리하게 계산하기(제때 계산법) , 느긋하게 계산하기
-
                 - 제너레이터/이터레이터 프로토콜을 기반으로 구현 (ES6)
             */
       
@@ -172,15 +171,118 @@
              //log(iterFilter.next()); {value: undefined, done: true}
       
         //5. 즉시평가(range, map, filter, take, reduce)의 중첩사용
-            
+        map = curry((f, iter) => {
+            let res = [];
+            iter = iter[Symbol.iterator](); //이터레이터로 setting
+            let cur;
+            while (!(cur = iter.next()).done) {  //done아닐때까지 실행
+              const a = cur.value; // 값을 a에 담아서 
+              res.push(f(a));      //push
+            }
+            return res;
+        });
+        filter = curry((f, iter) => {
+            let res = [];
+            iter = iter[Symbol.iterator]();
+            let cur;
+            while (!(cur = iter.next()).done) {
+              const a = cur.value;
+              if (f(a)) res.push(a);
+            }
+            return res;
+          });
+          take = curry((l, iter) => {
+              let res = [];
+              iter = iter[Symbol.iterator]();
+              let cur;
+              while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                res.push(a);
+                if (res.length == l) return res;
+              }
+              return res;
+          });
+          reduce = curry((f, acc, iter) => {
+              if (!iter) {
+                iter = acc[Symbol.iterator]();
+                acc = iter.next().value;
+              } else {
+                iter = iter[Symbol.iterator]();
+              }
+              let cur;
+              while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                acc = f(acc, a);
+              }
+              return acc;
+          });
+          L.map = curry(function* (f, iter) {
+              iter = iter[Symbol.iterator]();
+              let cur;
+              while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                yield f(a);
+              }
+          });
+          L.filter = curry(function* (f, iter) {
+              iter = iter[Symbol.iterator]();
+              let cur;
+              while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                if (f(a)) {
+                  yield a;
+                }
+              }
+          });
+
+          //즉시평가(순차적으로 코드실행됨 - 수평적으로 완성후 다음 코드라인진행)
+          console.time('즉시평가')
+          go(range(1000),   //아래 코드라인에서 필요하던 필요하지 않던 값모두 생성
+             map(n => n + 10),
+             filter(n => n % 2),
+             take(10),
+             log); 
+          console.timeEnd('즉시평가');//0.658935546875 ms
+
+          //지연평가 (수직적으로 실행되면서 조건문을 반복함)
+          //(take 함수부터 실행=> take의 while문의 next()만나면 L.filter()로 => L.filter의 while문 만나면  => L.map()으로 => L.map()의 while 문 만나면 => L.range로 이동하여 값 1개 리턴후 => L.map - L.filter - take실행 => 다시 위 내용을 반복
+          console.time('지연평가')
+          go(L.range(1000),   //필요한 만큼만 값 생성됨 
+             L.map(n => n + 10),
+             L.filter(n => n % 2),
+             take(10),   
+             log); 
+          console.timeEnd('지연평가');//0.237060546875 ms
+
         //6. 지연평가(L.map, L.range, L.filter, take)의 평가 순서 
+          
+        //즉시평가의 순서 
+          // [0, 1, 2, 3, 4, 5, 6, 7, 8...] 
+          // [10, 11, 12, ...]
+          // [11, 13, 15 ..]
+          // [11, 13]
+
+        //지연평가의 순서 
+          // [0    [1
+          // 10     11
+          // false]  true]
+          //
       
-        //7. 엄격한 게산과 느긋한 계산의 효율성 비교 
+        //7. 엄격한 계산과 느긋한 계산의 효율성 비교 
+        //지연평가(느긋한 계산)가 필요한 만큼 값을 생성하기때문에 효율적
       
         //8. map, filter계열 함수들이 가지는 결합 법칙
-      
+      /* 
+        - 사용하는 데이터가 무엇이든지
+        - 사용하는 보조 함수가 순수 함수라면 무엇이든지
+        - 아래와 같이 결합한다면 둘 다 결과가 같다.
+
+        [[mapping, mapping], [filtering, filtering], [mapping, mapping]]
+        =
+        [[mapping, filtering, mapping], [mapping, filtering, mapping]]
+      */
         //9. ES6기본 규약을 통해 구현되는 지연평가의 장점 
-      
+      //지연성자체를 ES6에서 지원하기 때문에 안전하게 , 조합성이 높게 사용가능
         </script>
       
         
