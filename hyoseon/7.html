@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js #7</title>
+  <style>
+  </style>
+</head>
+<body>
+  <script>
+  const log = console.log
+  const curry = f =>
+  (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+  const go = (...args) => reduce((a, f) => f(a), args);
+    
+  const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    
+  let add = (a, b) => a + b;
+    
+  let L = {};
+
+  const range = l => {
+    let i = -1;
+    let res = [];
+    while (++i < l) {
+      res.push(i);
+    }
+    return res;
+  };
+
+  let map = curry((f, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      res.push(f(a));
+    }
+    return res;
+  });
+
+  let filter = curry((f, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      if (f(a)) res.push(a);
+    }
+    return res;
+  });
+
+  const take = curry((l, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      res.push(a);
+      if (res.length == l) return res;
+    }
+    return res;
+  });
+
+  const reduce = curry((f, acc, iter) => {
+    if (!iter) {
+      iter = acc[Symbol.iterator]();
+      acc = iter.next().value;
+    } else {
+      iter = iter[Symbol.iterator]();
+    }
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      acc = f(acc, a);
+    }
+    return acc;
+  });
+
+  L.range = function* (l) {
+    let i = -1;
+    while (++i < l) {
+      yield i;
+    }
+  };
+
+  L.map = curry(function* (f, iter) {
+    iter = iter[Symbol.iterator]();
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      yield f(a);
+    }
+  });
+
+  L.filter = curry(function* (f, iter) {
+    iter = iter[Symbol.iterator]();
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      if (f(a)) {
+        yield a;
+      }
+    }
+  });
+
+  </script>
+
+  <script>
+  //1. 결과를 만드는 함수 reduce, take
+    //reduce와 take같은 함수는 지연성을 가지기보다 즉시평가되는 편이 낫다. 
+
+  //2. queryStr 함수 만들기
+    const queryStrGo = (obj) => go( 
+      obj, 
+      Object.entries,             //[['limit', 10], ['offset', 10], ['type', 'notice']]
+      map(([k, v]) => `${k}=${v}`), //['limit=10', 'offset=10', 'type=notice']
+      reduce((a,b)=> `${a}&${b}`)   //limit=10&offset=10&type=notice
+    )
+    log(queryStrGo({limit:10, offset:10, type:'notice'}))
+
+    const queryStrPipe = pipe( //queryGo와 동일하게 동작
+      Object.entries,          
+      map(([k, v]) => `${k}=${v}`), 
+      reduce((a,b)=> `${a}&${b}`)   
+    )
+    log(queryStrPipe({limit:10, offset:10, type:'notice'})) //limit=10&offset=10&type=notice
+
+  //3. Array.prototype.join보다 다형성이 높은 join함수
+    //배열이 아닌 이터러블이기만 하다면 적용가능 하기 때문에
+    //join을 reduce를 이용해 만들어보자
+    const join = curry((sep=',', iter) => reduce((a, b) => `${a}${sep}${b}`, iter));
+    const queryStrJoin = pipe( //queryPipe와 동일하게 동작
+      Object.entries,          
+      map(([k, v]) => `${k}=${v}`), 
+      join('&')   
+    )
+    log(queryStrJoin({limit:10, offset:10, type:'notice'})) //limit=10&offset=10&type=notice
+
+    function *a(){  //제너레이터
+      yield 10;
+      yield 11;
+      yield 12;
+      yield 13;
+    }
+    log(join('-', a()));//10-11-12-13 
+
+    const queryStrJoin2 = pipe( 
+      Object.entries,          
+      L.map(([k, v]) => `${k}=${v}`), //지연평가로 리턴되는 제너레이터를 넘겨줘도 
+      function(a){
+        console.log(a); //Generator {<suspended>}
+        return a
+      } ,
+      join('&')  //reduce()를 통해 동작하기 때문에 잘 동작함
+    )
+    log(queryStrJoin2({limit:10, offset:10, type:'notice'}))
+
+
+    L.entries = function *(obj){
+      for(const k in obj) yield [k, obj[k]];
+    };
+  
+    const queryStrJoin3 = pipe( 
+      L.entries,            //제너레이터 넘김
+      L.map(([k, v]) => `${k}=${v}`), //지연평가로 리턴되는 제너레이터 넘김
+      join('&')  //reduce()를 통해 동작하기 때문에 잘 동작함
+    )
+    log(queryStrJoin3({limit:10, offset:10, type:'notice'}))
+    
+
+  //4. take, find
+    //find를 take를 이용해 만들어 보자 
+    const users = [
+      {age: 32},
+      {age: 31},
+      {age: 37},
+      {age: 28},
+      {age: 25},
+      {age: 32},
+      {age: 31},
+      {age: 37}
+    ];
+    
+    let find = (f, iter) => go(
+      iter, 
+      filter(f)
+    );
+    log(find( u => u.age < 30, users)); //[{age:28}, {age:25}]
+
+    find = curry((f, iter) => go(
+      iter, 
+      L.filter(f), //값을 모두 순회하지 않도록 지연평가 
+      take(1), //1개만 꺼내볼 생각일 때 
+      ([a])=> a
+    ));
+    log(find( u => u.age < 30, users)); //{age: 28}
+    
+  //5. L.map, L.filter로 map, filter만들기
+    map = curry((f, iter) => go(
+      iter,
+      L.map(f),
+      take(Infinity) //take로 iter를 모두 평가해서 리턴
+    ))
+    map = curry((f, iter) => pipe(
+      L.map,
+      take(Infinity) //take로 iter를 모두 평가해서 리턴
+    ))
+    log(map(a => a +10, L.range(4))) //[10, 11, 12, 13]
+
+    filter = curry(() => pipe(
+    L.filter,
+    take(Infinity)))
+
+    L.map = curry(function* (f, iter) {
+      for (const a of iter) {
+        yield f(a);
+      }
+    });
+
+    L.filter = curry(function* (f, iter) {
+      for (const a of iter) {
+        if (f(a)) yield a;
+      }
+    });
+
+  //6. L.flatten, flatten
+    log([...[1, 2], 3, 4, ...[5, 6], ...[7, 8, 9]]); //해당 연산을 수행하면서 지연성을 가진 함수만들기 
+
+      const isIter = a => a && a[Symbol.iterator];  // Symbol.iterator를 가지고 있는지, null인지 체크
+    L.flatten = function *(iter){
+      for(const a of iter){
+        if(isIter(a)){
+          for(const b of a){
+            yield b;
+          }
+        } else yield a;
+      }
+    }
+
+    let it = L.flatten([...[1, 2], 3, 4, ...[5, 6], ...[7, 8, 9]]);
+    log(it)// L.flatten {<suspended>}
+    //log(it.next());
+    //log(it.next());
+    //log(it.next());
+    //log(it.next());
+    log([...it]); //[1, 2, 3, 4, 5, 6, 7, 8, 9]
+    log(take(3, L.flatten([...[1, 2], 3, 4, ...[5, 6], ...[7, 8, 9]]))) //[1, 2, 3]
+
+    //L.flatten을 통해서 즉시평가하는 flatten을 만들자 
+    const flatten = pipe(L.flatten, take(Infinity));
+
+    //yield *iterable은 for (const val of iterable) yield val;과 같음을 이용한 리팩토링 
+    L.flatten = function *(iter) {
+      for (const a of iter) {
+        if (isIter(a)) yield *a;
+        else yield a;
+      }
+    };
+
+    //깊은 deep까지 모두 펼치도록 하는 함수 
+    L.deepFlat = function *f(iter) {
+      for (const a of iter) {
+        if (isIter(a)) yield *f(a);
+        else yield a;
+      }
+    };
+    log([...L.deepFlat([1, [2, [3, 4], [[5]]]])]);// [1, 2, 3, 4, 5];
+
+
+//7. L.flapMap, flapMap
+      log([[1,2],[3,4],[5,6,7],8,9,[10]].flatMap(a => a));//[1, 2, 3, 4, 5, 6, 7, 8, 9, 10] 자바스크립트 내장 함수 
+      //flatMap은 map한 내용에 flatten 적용한 것 => 약간 비효율적
+      log(flatten([[1,2],[3,4],[5,6,7],8,9,[10]]).map(a => a))
+
+      L.flatMap = curry(pipe(L.map, L.flatten));
+      const flatMap = curry(pipe(L.map, flatten));
+
+      let it2 = L.flatMap(a => a, [[1,2],[3,4],[5,6,7],8,9,[10]]);
+      log([...it2]); //[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+//8. 2차원 배열 다루기
+      const arr = [
+        [1,2],
+        [3,4],
+        [5,6],
+        [7],
+        [8,9,10]
+      ];
+      go(arr,
+      L.flatten,
+      L.filter(a => a % 2),
+      take(4), //take까지만 순회함
+      log)
+//9. 이터러블 중심 프로그래밍 실무적인 코드
+      let users2 = [
+          {
+            name: 'a', age: 21, family: [
+              {name: 'a1', age: 53}, {name: 'a2', age: 47},
+              {name: 'a3', age: 16}, {name: 'a4', age: 15}
+            ]
+          },
+          {
+            name: 'b', age: 24, family: [
+              {name: 'b1', age: 58}, {name: 'b2', age: 51},
+              {name: 'b3', age: 19}, {name: 'b4', age: 22}
+            ]
+          },
+          {
+            name: 'c', age: 31, family: [
+              {name: 'c1', age: 64}, {name: 'c2', age: 62}
+            ]
+          },
+          {
+            name: 'd', age: 20, family: [
+              {name: 'd1', age: 42}, {name: 'd2', age: 42},
+              {name: 'd3', age: 11}, {name: 'd4', age: 7}
+            ]
+          }
+        ];
+    go(users2, 
+    L.map(user=> user.family), //제너레이터 리턴
+    L.flatten, //제너레이터
+    L.filter(user=> user.age > 20), //20살 이상만 뽑아서
+    L.map(user => user.name), //그 사람들의 name을 리턴하시오
+    take(Infinity), //모두 펼침 
+    log)
+
+
+
+
+
+
+
+
+
+
+
+ </script>
+</body>
+</html>
