@@ -2,10 +2,10 @@ const { go, L, take, flatten, takeAll } = require('../lib')
 
 // 2차원 배열 다루기
 const arr = [
-    [1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [9, 10]
+  [1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [9, 10]
 ]
 
 go(arr,
@@ -46,8 +46,8 @@ go(
     users,
     L.map(u => u.family),
     L.flatten,
-    L.filter(u => u.age < 20),
-    L.map(u => u.name),
+    // L.filter(u => u.age < 20),
+    // L.map(u => u.name),
     take(4),
     console.log
 )
