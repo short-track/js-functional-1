@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js #8</title>
+  <style>
+  </style>
+</head>
+<body>
+  <script>
+    //lib
+const log = console.log;
+
+const curry = f =>
+  (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+
+const isIterable = a => a && a[Symbol.iterator];
+
+const reduce = curry((f, acc, iter) => {
+  if (!iter) {
+    iter = acc[Symbol.iterator]();
+    acc = iter.next().value;
+  } else {
+    iter = iter[Symbol.iterator]();
+  }
+  return go1(acc, function recur(acc) {
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      acc = f(acc, a);
+      if (acc instanceof Promise) return acc.then(recur);
+    }
+    return acc;
+  });
+});
+
+const go = (...args) => reduce((a, f) => f(a), args);
+
+const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+
+const take = curry((l, iter) => {
+  let res = [];
+  iter = iter[Symbol.iterator]();
+  let cur;
+  while (!(cur = iter.next()).done) {
+    const a = cur.value;
+    res.push(a);
+    if (res.length == l) return res;
+  }
+  return res;
+});
+
+const takeAll = take(Infinity);
+
+const L = {};
+
+L.range = function* (l) {
+  let i = -1;
+  while (++i < l) yield i;
+};
+
+L.map = curry(function* (f, iter) {
+  for (const a of iter) {
+    yield f(a);
+  }
+});
+
+L.filter = curry(function* (f, iter) {
+  for (const a of iter) {
+    if (f(a)) yield a;
+  }
+});
+
+L.entries = function* (obj) {
+  for (const k in obj) yield [k, obj[k]];
+};
+
+L.flatten = function* (iter) {
+  for (const a of iter) {
+    if (isIterable(a)) yield* a;
+    else yield a;
+  }
+};
+
+L.deepFlat = function* f(iter) {
+  for (const a of iter) {
+    if (isIterable(a)) yield* f(a);
+    else yield a;
+  }
+};
+
+L.flatMap = curry(pipe(L.map, L.flatten));
+
+const map = curry(pipe(L.map, takeAll));
+
+const filter = curry(pipe(L.filter, takeAll));
+
+const find = curry((f, iter) => go(
+  iter,
+  L.filter(f),
+  take(1),
+  ([a]) => a));
+
+const flatten = pipe(L.flatten, takeAll);
+
+const flatMap = curry(pipe(L.map, flatten));
+
+var add = (a, b) => a + b;
+
+const range = l => {
+  let i = -1;
+  let res = [];
+  while (++i < l) {
+    res.push(i);
+  }
+  return res;
+};
+    </script>
+  <script>
+    //1. callback & Promise
+    function add10(a, callback) {
+      setTimeout(() => callback(a + 10), 100);
+    }
+
+    add10(5, res => { //가독성이 좋지 않다
+      add10(res, res => {
+        add10(res, res => {
+          log(res);
+        });
+      });
+    });
+
+    function add20(a) { //promise를 리턴한다는 점이 중요하다 
+      return new Promise(resolve => setTimeout(() => resolve(a + 20), 100));
+    }
+
+    add20(5)
+      .then(add20)
+      .then(add20)
+    // .then(log);
+
+    //2. 비동기를 값으로 만드는 promise
+    //promise는 일급함수로 값으로 리턴한다는 점에서!! callback과 큰 차이
+    let a = add10(5, res => { 
+        add10(res, res => {
+          add10(res, res => {
+            log(res);
+          });
+        });
+      });
+    log(a); //콜백의 결과는 undefined
+    // 콜백을 실행하고 나면 끝...!
+    // 그렇기에 내부적으로 로직을 계속 이어가야함 (콜백함수가 늘어남)
+
+    let b = add20(5)
+      .then(add20)
+      .then(add20)
+      .then(log);
+    log(b); // Promise의 결과는 Promise를 리턴함
+    //즉, 비동기상황을 값으로 다루고 있고, 이것은 일급 <= 이점이 가장 중요한 점 !
+    let c = b.then(log);
+    let d = c.then(log); //이러한 로직이 계속 가능함 
+
+    //3. 값으로서의 promise활용
+    const delay100 = a => new Promise(resolve =>
+    setTimeout(() => resolve(a), 100));
+
+    const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a); // a가 프로미스인지 체크해서 f를 실행함
+    const add5 = a => a + 5;
+      
+    const n1 = 10;
+    // log(go1(go1(n1, add5), log));
+      
+    const n2 = delay100(10);
+    // log(go1(go1(n2, add5), log));
+
+    //4. 합성 관점에서의 promise와 모나드
+    //함수 합성?  f함수가 있다고 할때, g함수의 결과를 f함수가 받아 f의 결과를 만드는 것 
+    //모나드 ? 함수 합성을 간편하게 해줌
+    //promise ? 비동기상황을 안전하게 합성해줌
+
+    
+  </script>
+</body>
+</html>
