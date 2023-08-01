@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script type="text/javascript" src="fx.js"></script>
+
+    <script>
+        const L = {}
+        L.range = function *(l) {
+            console.log('hi~') // 첫 .next()실행 시만 실행된다.
+            let i = -1;
+            while (++i < l) {
+                console.log(i)
+                yield i
+            }
+        };
+
+        const add = (a,b) => a+b 
+
+        var list = L.range(4); // iterator를 반환한다.
+        console.log(reduce(add, list)); // 6, 리듀서는 이터러블을 받을 수 있다.
+    </script>
+</body>
+</html>

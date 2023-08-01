@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script type="text/javascript" src="fx.js"></script>
+
+    <script>
+        const take = curry((l, iter) => {
+            let res = [];
+
+            for (const a of iter) {
+                res.push(a);
+                if (res.length === l) {
+                return res;
+                }
+            }
+
+            return res;
+        });
+
+        range(100); // 0 ~ 100
+
+        console.log(take(5, range(100))); // 0 ~ 4
+
+        console.log(take(5, L.range(100))); // 0 ~ 4
+
+
+            go(
+                range(10000),
+                take(5),
+                console.log
+            )
+
+            go(
+                L.range(10000),
+                take(5),
+                console.log
+            )
+    </script>
+</body>
+</html>
