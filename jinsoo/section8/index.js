@@ -1,3 +1,4 @@
+const { find, go, pipe } = require("./fx");
 const log = console.log;
 
 //* callback Pattern
@@ -10,7 +11,7 @@ function add10(a, callback) {
 var a = add10(5, (res) => {
   add10(res, (res) => {
     add10(res, (res) => {
-      log(res);
+      // log(res);
     });
   });
 });
@@ -109,3 +110,103 @@ new Promise((resolve) =>
   .then(g)
   .then(f)
   .then((r) => log("setTime", r));
+
+//* Kleisli Composition
+//? 오류가 있을 수 있는 상황에서의 합수 합성을 안전하게 하는 하나의 규칙
+// f . g
+// f(g(x)) = f(g(x))
+
+//? 만약 g에서 에러가 나면 아래와 같이 만드는 것이 Kleisli Composition
+// f(g(x)) = g(x)
+
+console.clear();
+
+(() => {
+  const users = [
+    { id: 1, name: "aa" },
+    { id: 2, name: "bb" },
+    { id: 3, name: "cc" },
+  ];
+
+  const getUserById = (id) =>
+    find((u) => u.id == id, users) || Promise.reject("없어요!");
+
+  const f = ({ name }) => name;
+  const g = getUserById;
+
+  // const fg = (id) => f(g(id));
+  // log(fg(2));
+
+  // const r = fg(2);
+  // users.pop();
+  // users.pop();
+
+  // const r2 = fg(2); //! Error
+
+  //? f,g는 각각 잘 작동하는 함수지만 f.g를 합성하면 위험한 상황이 생길 수 있다.
+  //? f 함수는 name이 있을 때, g도 id가 있을 때 정상적으로 동작하기 때문
+
+  //* Kleisli Composition 합성
+  const fg = (id) =>
+    Promise.resolve(id)
+      .then(g)
+      .then(f)
+      .catch((a) => a);
+
+  fg(2).then(log);
+
+  setTimeout(function () {
+    users.pop();
+    users.pop();
+    fg(2).then(log);
+  }, 10);
+})();
+
+//* go, pipe, reduce에서 비동기 제어
+(() => {
+  // const go1 = (a, f) => (a instanceof Promise ? a.then(f) : f(a));
+  // const reduce = curry((f, acc, iter) => {
+  //   if (!iter) {
+  //     iter = acc[Symbol.iterator]();
+  //     acc = iter.next().value;
+  //   } else {
+  //     iter = iter[Symbol.iterator]();
+  //   }
+  //   return (function recur(acc) {
+  //     let cur;
+  //     while (!(cur = iter.next()).done) {
+  //       const a = cur.value;
+  //       acc = f(acc, a);
+  //       // acc = acc instanceof Promise ? acc.then((acc) => f(acc, a)) : f(acc, a);
+  //       if (acc instanceof Promise) return acc.then(recur);
+  //     }
+  //     return acc;
+  //   })();
+  // });
+
+  go(
+    1, // Promise.resolve(1)도 되게 하고 싶다. go1 함수 추가
+    (a) => a + 10,
+    (a) => Promise.resolve(a + 100), // Promise.reject('error~') 처리도 하고 싶다.
+    (a) => a + 1000,
+    (a) => a + 10000,
+    log
+  );
+
+  go(
+    1, // Promise.resolve(1)도 되게 하고 싶다. go1 함수 추가
+    (a) => a + 10,
+    (a) => Promise.reject("error~"), // Promise.reject('error~') 처리도 하고 싶다.
+    (a) => a + 1000,
+    (a) => a + 10000,
+    log
+  ).catch((a) => log(a));
+})();
+
+//* promise.then의 중요한 규칙
+(() => {
+  Promise.resolve(Promise.resolve(Promise.resolve(1))).then(log);
+
+  new Promise(resolve => resolve(new Promise(resolve => resolve(1)))).then(log);
+  //? 아무리 Promise가 중첩된다고 하더라도 내가 원하는 곳에서 then으로 꺼내 쓸 수 있다.
+})();
