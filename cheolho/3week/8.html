@@ -1,0 +1,240 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+  <script>const log = console.log;</script>
+  <script>
+    const curry = f =>
+      (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+    const map = curry((f, iter) => {
+      let res = [];
+      iter = iter[Symbol.iterator]();
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        res.push(f(a));
+      }
+      return res;
+    });
+    const filter = curry((f, iter) => {
+      let res = [];
+      iter = iter[Symbol.iterator]();
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        if (f(a)) res.push(a);
+      }
+      return res;
+    });
+    const reduce = curry((f, acc, iter) => {
+      // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        acc = f(acc, a);
+      }
+      return acc;
+    });
+    const go = (...args) => reduce((a, f) => f(a), args);
+    const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    const range = l => {
+      let i = -1;
+      let res = [];
+      while (++i < l) {
+        res.push(i);
+      }
+      return res;
+    };
+    const take = curry((l, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(a);
+        if (res.length == l) return res;
+      }
+      return res;
+    });
+
+    const L = {};
+    L.range = function *(l) {
+      var i = -1;
+      while (++i < l) {
+        yield i;
+      }
+    };
+    L.map = curry(function *(f, iter) {
+      for (const a of iter) {
+        yield f(a);
+      }
+    });
+    L.filter = curry(function *(f, iter) {
+      for (const a of iter) {
+        if (f(a)) yield a;
+      }
+    });
+    const join = curry((sep = ',', iter) => 
+      reduce((a, b) => `${a}${sep}${b}`, iter));
+      L.entries = function *(obj) {
+      for (const k in obj) yield [k, obj[k]];
+    }
+    const find = curry((f, iter) => go(
+      iter,
+      // L.filter를 하면 하나가 꺼내질때까지만 평가하고 끝남
+      // filter(a => (log(a), f(a))),
+      // L.filter(a => (log(a), f(a))),
+      L.filter(f),
+      take(1),
+      ([a]) => a
+    ));
+    const takeAll = take(Infinity);
+    const isIterable = a => a && a[Symbol.iterator];
+    L.flatten = function *(iter) {
+      for (const a of iter) {
+        // yield *a === for (const b of a) yield b;
+        if (isIterable(a)) yield *a;
+        else yield a;
+      }
+    }
+    
+    const flatten = pipe(L.flatten, takeAll);
+    L.deepFlat = function *f(iter) {
+      for (const a of iter) {
+        // 재귀 활용
+        if (isIterable(a)) yield *f(a);
+        else yield a;
+      }
+    }
+    
+  </script>
+
+  # Promise
+
+  ## 일급
+  <script>
+    function add10(a, callback) {
+      setTimeout(() => callback(a + 10), 1000);
+    }
+
+    add10(5, res => {
+      log(res);
+    });
+
+    function add20(a) {
+      return new Promise(resolve => setTimeout(() => resolve(a + 20), 1000));
+    }
+
+    add20(5)
+      .then(log);
+    
+    // 연속적인 실행을 했을 때 눈에 띄게 차이난다.
+    add10(5, res => {
+      add10(res, res => {
+        add10(res, res => {
+          log(res);
+        })
+      })
+    });
+
+    add20(5)
+      .then(add20)
+      .then(add20)
+      .then(log);
+
+    // Promise는 (대기/성공/실패) 일급으로 비동기 상황을 다룬다 ** 콜백과의 가장 중요한 차이점
+    // = Promise는 비동기 상황을 값으로 다룰 수 있다. = 일급
+    // = return
+    var a = add10(5, res => {
+      log(res);
+    });
+
+    var b = add20(5)
+      .then(log);
+
+    // undefined
+    log(a);
+    // Promise {<pending>}
+    log(b);
+  </script>
+
+  ## 일급 활용
+  <script>
+    // a와 f가 동기적으로 작동해야만 함
+    // const go1 = (a, f) => f(a);
+    const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+    const add5 = a => a + 5;
+
+    // log(go1(10, add5));
+
+    // a가 몇초 후에 알 수 있는 값이라면?
+    const delay100 = a => new Promise(resolve => 
+      setTimeout(() => resolve(a), 100));
+
+    // log(go1(delay100(10), add5));
+
+    // 동기 비동기를 완전 동일하게 표현 가능
+    const n1 = 10;
+    log(go1(go1(n1, add5), log));
+
+    const n2 = delay100(10);
+    log(go1(go1(n2, add5), log));
+  </script>
+
+  ## Composition
+  <script type="module">
+    // 모나드, 함수합성
+    // 함수합성 = f . g = g의 결과를 f에 그대로 전달해서 결과를 만든다
+    // f(g(x)) = f . g(x)
+
+    // 안전하게 합성할 수 있게 하기 위해 모나드란 개념이 있고
+    // 구현체 중에 비동기 상황을 안전하게 합성하기 위한 것이 Promise
+
+    // Array, Promise를 통해 모나드가 무엇인지
+    // 모나드는 함수합성을 안전하게 하기 위한 도구
+    // 모나드는 박스 [] -> [1]에 어떤 값이 들어있고, 값을 통해서 함수 합성을 안전하게 해나감
+    const g = a => a + 1;
+    const f = a => a * a;
+
+    // 유의미한 값
+    // log(f(g(1)));
+    // 반드시 안전한 인자만 들어올 수 있는 함수합성 = g 에게 전달될 값이 어떤 값이 알 수 없음 -> 문제를 일으킴
+    // log(f(g()));
+
+    // 이런 상황에서 어떻게 안전하게 합성할 수 있을까? = 모나드
+    // [1] <- 박스 안에 연산에 필요한 재료들을 갖고 있고, 박스가 갖고 있는 메소드를 통해 함수를 합성
+    
+    // array란 값은 필요한 값이 아니다. 개발자가 어떤 효과를 만들거나 값을 다룰 때 사용하는 도구이지, 사용자 화면에 노출하는 실제 결론은 아니다.
+    // 안에 있는 값이 필요한 값
+    // log([1].map(g).map(f));
+    Array.of(1).map(g).map(f).forEach(log);
+
+    // 이점은? 함수 자체가 실행이 안됨
+    // 박스 안에 효과가 있는지 없는지에 따라서 안전하게. 효과를 아예 일으키지 않는 식으로
+    [].map(g).map(f).forEach(log);
+    // 현업에서 나도 모르게 자주 쓰던 방식 (arr || []).map().join() 이런 식으로
+
+    // array는 map을 통해 합성
+    // promise는 then을 통해 합성
+    Promise.resolve(2).then(g).then(f).then(r => log(r));
+    new Promise(resolve => 
+      setTimeout(() => resolve(2), 100)
+    ).then(g).then(f).then(r => log(r));
+
+    // 모나드의 정의가 무엇이냐에 너무 집중할 필요 없다
+    // 그냥 함수합성을 안전하게 하기위한 도구라고 생각하면 된다
+    // array가 값이 없을 수도 있고... promise는 값이 없을 수도 있고... 그런 상황에서 안전하게 합성하기 위한 도구
+    // Promise는 합성 관점에서 얼마만큼의 딜레이가 필요한 상황에서도 함수를 적절한 시점에 평가해서 합성시키기 위한 도구로 바라볼 수 있다.
+  </script>
+
+  ## Kleisli Composition
+</body>
+</html>
