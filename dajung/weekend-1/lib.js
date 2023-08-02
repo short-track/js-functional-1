@@ -1,18 +1,7 @@
 const curry = f => 
     (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._)       
 
-const map = curry((fn, iter) => {
-    const result = []
-    let current;
-    iter = iter[Symbol.iterator]()
-
-    while (!(current = iter.next()).done) {
-        const element = current.value;
-
-        result.push(fn(element))
-    }
-    return result
-})
+const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a)
 
 const filter = curry((fn, iter) => {
     const result = []
@@ -36,14 +25,19 @@ const reduce = curry((fn, acc, iter) => {
         iter = iter[Symbol.iterator]()
     }
 
-    let current;
+    return go1(acc, function recur(acc) {
+        let current;
     
-    while (!(current = iter.next()).done) {
-        const element = current.value;
+        while (!(current = iter.next()).done) {
+            const element = current.value;
+            // promise가 실행되는 구간
+            // 만약에 acc가 promise면 
+            acc = fn(acc, element)
+            if (acc instanceof Promise ) return acc.then(recur);
 
-        acc = fn(acc, element)
-    }
-    return acc
+        }
+        return acc;
+    });
 })
 
 const go = (...args) => {
@@ -84,13 +78,20 @@ const range = (l) => {
 const take = curry((l, iter) => {
     const result = []
     iter = iter[Symbol.iterator]()
-    let current;
-    while (!(current = iter.next()).done) {
-        const element = current.value;
-        result.push(element)
-        if (result.length === l) return result
-    }
-    return result
+    return function recur() {
+        let current;
+        while (!(current = iter.next()).done) {
+            const element = current.value;
+            // promise 일 수 있는 상황
+            if (element instanceof Promise) return element.then(a => {
+                result.push(a)
+                return result.length === l ? result : recur()
+            }) 
+            result.push(element)
+            if (result.length === l) return result
+        }
+        return result
+    }()
 })
 
 const L = {}
@@ -104,7 +105,7 @@ L.range = function *(l) {
 }
 
 L.map = curry(function *(f, iter) {
-    for (const element of iter) yield f(element)
+    for (const element of iter) yield go1(element, f)
 })
 
 L.filter = curry(function *(f, iter) {
@@ -128,6 +129,16 @@ L.flatMap = curry(pipe(L.map, L.flatten))
 const flatten = pipe(L.flatten, take(Infinity))
 const flatMap = curry(pipe(L.map, flatten))
 const takeAll = take(Infinity)
+
+const find = curry((f, iter) => go(
+    iter,
+    L.filter(f),
+    take(1),
+    ([a]) => a));
+
+
+const map = curry(pipe(L.map, takeAll))
+
 module.exports = {
     map,
     filter,
@@ -140,5 +151,6 @@ module.exports = {
     takeAll,
     flatten,
     flatMap,
+    find,
     L
 }
