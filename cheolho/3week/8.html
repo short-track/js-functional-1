@@ -32,7 +32,7 @@
       }
       return res;
     });
-    const reduce = curry((f, acc, iter) => {
+    var reduce = curry((f, acc, iter) => {
       // log(reduce(add, [1, 2, 3, 4, 5])); -> log(reduce(add, 1, [1, 2, 3, 4, 5]));
       if (!iter) {
         iter = acc[Symbol.iterator]();
@@ -46,7 +46,7 @@
       }
       return acc;
     });
-    const go = (...args) => reduce((a, f) => f(a), args);
+    var go = (...args) => reduce((a, f) => f(a), args);
     const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
     const range = l => {
       let i = -1;
@@ -201,8 +201,8 @@
     // Array, Promise를 통해 모나드가 무엇인지
     // 모나드는 함수합성을 안전하게 하기 위한 도구
     // 모나드는 박스 [] -> [1]에 어떤 값이 들어있고, 값을 통해서 함수 합성을 안전하게 해나감
-    const g = a => a + 1;
-    const f = a => a * a;
+    var g = a => a + 1;
+    var f = a => a * a;
 
     // 유의미한 값
     // log(f(g(1)));
@@ -236,5 +236,200 @@
   </script>
 
   ## Kleisli Composition
+  <script type="module">
+    // Promise는 Kleisli Composition를 지원하는 도구
+    // Kleisli Composition는 오류가 있을 수 있는 상황에서의 함수 합성을 안전하게 할 수 있는 하나의 규칙
+    // 외부 상황의 상황이나 효과의 상황에서 함수합성이 정확하게 일어나지 않을 수 있음
+    // Kleisli Composition은 이런 상황에서 안전하게 합성할 수 있는 규칙
+
+    // f . g
+    // f(g(x)) = f(g(x))
+    // 실무에서는 왼쪽의 x와 오른쪽에서 실행할 때의 x가 다를 수도 있다는 상황을 고려해야 한다
+    // f(g(x)) = g(x) = g에서 에러가 난 경우 f(g(x))의 결과가 g(x)의 결과와 같다. 마치 합성하지 않은 것처럼
+
+    var users = [
+      { id: 1, name: 'aa' },
+      { id: 2, name: 'bb' },
+      { id: 3, name: 'cc' }
+    ];
+
+    var getUserById = id => find(u => u.id === id, users);
+
+    var f = ({name}) => name;
+    var g = getUserById;
+    var fg = id => f(g(id));
+
+    // bb
+    // log(fg(2));
+    // true
+    // log(fg(2) == fg(2));
+
+    // 실세계에서는 users의 상태가 변하기 마련
+    const r = fg(2);
+    // bb
+    // log(r);
+    // users.pop();
+    // users.pop();
+
+    // error
+    // const r2 = fg(2);
+    // f는 항상 name을 가진 객체를 받았을 떄만 정상 동작
+    // g는 getUserById 결과가 있다고 가정했을 때에만 정상 동작
+    // 만약 f(g())에 1 ~ 3사이의 값만 전달한다고 하고 위의 조건만 어긋나지 않으면 정상 동작
+    // 조건이 어긋나도 정상 동작하도록
+    
+    users.pop();
+    users.pop();
+    // fg(2).then(log);
+    var getUserById = id =>
+      find(u => u.id === id, users) || Promise.reject('없어요!');
+      
+    var f = ({name}) => name;
+    var g = getUserById;
+    var fg = id => Promise.resolve(id).then(g).then(f);
+
+    // Uncaught (in promise) 없어요!
+    fg(2).then(log);
+    
+    // Promise {<rejected>: '없어요!'}
+    log(g(2));
+
+    // Prmoise를 이용해서 Kleisli 관점으로 바라봄. g에서 reject, f는 실행되지 않는다.
+    var fg = id => Promise.resolve(id).then(g).then(f).catch(a => a);
+    // 없어요!
+    fg(2).then(log);
+  </script>
+
+  ## go, pipe, reduce에서 비동기 제어
+  <script>
+    // [object Promise]100010000 -> 어느 시점에는 reduce에서 acc가 Promise로 된다
+    go(1,
+      a => a + 10,
+      a => Promise.resolve(a + 100),
+      a => a + 1000,
+      a => a + 10000,
+      log
+    );
+
+    var reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      // while (!(cur = iter.next()).done) {
+      //   const a = cur.value;
+      //   // acc = f(acc, a);
+      //   // 연속적으로 비동기가 일어나는 코드 = 성능저하
+      //   // acc = acc instanceof Promise ? acc.then(acc => f(acc, a)) : f(acc, a);
+      // }
+
+      // 중간에 Promise를 만나도 Promise가 아닐 때는 동기적으로 동작하도록 = 유명함수, 재귀이용
+      return function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          acc = f(acc, a);
+          if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+      } (acc);
+      
+      return acc;
+    });
+    var go = (...args) => reduce((a, f) => f(a), args);
+
+    console.clear();
+    // 11111
+    go(1,
+      a => a + 10,
+      a => Promise.resolve(a + 100),
+      a => a + 1000,
+      a => a + 10000,
+      log
+    );
+
+    // 첫번쨰 인자가 promise여도 동작하도록 go1 적용
+    var reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      return go1(acc, function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          acc = f(acc, a);
+          if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+      });
+      
+      return acc;
+    });
+    var go = (...args) => reduce((a, f) => f(a), args);
+    // 11111
+    go(Promise.resolve(1),
+      a => a + 10,
+      a => Promise.resolve(a + 100),
+      a => a + 1000,
+      a => a + 10000,
+      log
+    );
+
+    var reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      return go1(acc, function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          acc = f(acc, a);
+          if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+      });
+      
+      return acc;
+    });
+    var go = (...args) => reduce((a, f) => f(a), args);
+    go(Promise.resolve(1),
+      a => a + 10,
+      a => Promise.reject('error~~'),
+      // 이 아래는 평가되지 않음
+      a => log('----'),
+      a => a + 1000,
+      a => a + 10000,
+      log
+    ).catch(a => console.log(a));
+  </script>
+
+  ## promise.then의 중요한 규칙
+  <script>
+    // then을 통해 꺼낸 결과는 반드시 Promise가 아니다
+
+    // Promise가 중첩되어 선언되어 있어도 단 한번의 then으로 안에 있는 값을 꺼낼 수 있음
+    // 개발자끼리의 소통에 있어서 중요한 규칙
+    // 1
+    Promise.resolve(Promise.resolve(Promise.resolve(1))).then(function(a) {
+      // promise를 2번 했으면 안쪽에 있는 Promise.resolve(1)가 떨어질 것 같지만
+      // 안에 있는 값이 꺼내진다
+      // 1
+      log(a);
+    });
+    
+    // 1
+    new Promise(resolve => resolve(new Promise(resolve => resolve(1))))
+      .then(log);
+
+    // 아무리 Promise가 중첩되어도 내가 원하는 곳에서 한번의 then으로 꺼내서 사용할 수 있다.
+  </script>
 </body>
 </html>
