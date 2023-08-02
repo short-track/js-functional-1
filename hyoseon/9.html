@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>functional-js #9</title>
+  <style>
+  </style>
+</head>
+<body>
+<script>
+    //lib
+    const log = console.log;
+
+const curry = f =>
+  (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+
+const isIterable = a => a && a[Symbol.iterator];
+
+const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+
+const reduce = curry((f, acc, iter) => {
+  if (!iter) {
+    iter = acc[Symbol.iterator]();
+    acc = iter.next().value;
+  } else {
+    iter = iter[Symbol.iterator]();
+  }
+  return go1(acc, function recur(acc) {
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      acc = f(acc, a);
+      if (acc instanceof Promise) return acc.then(recur);
+    }
+    return acc;
+  });
+});
+
+const go = (...args) => reduce((a, f) => f(a), args);
+
+const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+
+let take = curry((l, iter) => {
+  let res = [];
+  iter = iter[Symbol.iterator]();
+  let cur;
+  while (!(cur = iter.next()).done) {
+    const a = cur.value;
+    res.push(a);
+    if (res.length == l) return res;
+  }
+  return res;
+});
+
+const takeAll = take(Infinity);
+
+const L = {};
+
+L.range = function* (l) {
+  let i = -1;
+  while (++i < l) yield i;
+};
+
+L.map = curry(function* (f, iter) {
+  for (const a of iter) {
+    yield f(a);
+  }
+});
+
+L.filter = curry(function* (f, iter) {
+  for (const a of iter) {
+    if (f(a)) yield a;
+  }
+});
+
+L.entries = function* (obj) {
+  for (const k in obj) yield [k, obj[k]];
+};
+
+L.flatten = function* (iter) {
+  for (const a of iter) {
+    if (isIterable(a)) yield* a;
+    else yield a;
+  }
+};
+
+L.deepFlat = function* f(iter) {
+  for (const a of iter) {
+    if (isIterable(a)) yield* f(a);
+    else yield a;
+  }
+};
+
+L.flatMap = curry(pipe(L.map, L.flatten));
+
+const map = curry(pipe(L.map, takeAll));
+
+const filter = curry(pipe(L.filter, takeAll));
+
+const find = curry((f, iter) => go(
+  iter,
+  L.filter(f),
+  take(1),
+  ([a]) => a));
+
+const flatten = pipe(L.flatten, takeAll);
+
+const flatMap = curry(pipe(L.map, flatten));
+
+var add = (a, b) => a + b;
+
+const range = l => {
+  let i = -1;
+  let res = [];
+  while (++i < l) {
+    res.push(i);
+  }
+  return res;
+};
+</script>
+    <script>
+    //1. 지연 평가 + Promise - L.map, map, take
+    go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      L.map(a => a + 10),
+      take(2),
+      log); //['[object Promise]10', '[object Promise]10'] 비정상적인 값이 리턴됨 
+
+      L.map = curry(function* (f, iter) {
+        for (const a of iter) {
+            yield go1(a, f); //go1로 리팩토링
+        }
+      });
+
+      go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      L.map(a => a + 10),
+      take(2),
+      log); //[Promise, Promise]
+
+      take = curry((l, iter) => { 
+        //받은 iter안에 Promise가 있다면 확인후 resolve값을 실행하도록 리팩토링
+        let res = [];
+        iter = iter[Symbol.iterator]();
+        return function recur() {//즉시실행함수이면서 재귀를 위한 기명함수로 작성
+          let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          if(a instanceof Promise) return a.then(a => { //promise맞다면, then안의 값을 꺼내서 res에 넣음
+              res.push(a);
+            if (res.length == l) return res; //여기까지 작성 후 다시 while문으로 돌아갈 방법이 없음 => 재귀함수를 쓰자! 
+            return recur();//프로미스면 이 블럭을 돎
+          })
+          res.push(a);//프로미스 아니면 바깥 블럭을 돎
+          if(res.length == l) return res;
+          }
+        return res;
+        }();
+      });
+
+      go(
+      [1, 2, 3],
+      L.map(a => Promise.resolve(a + 10)),
+      take(2),
+      log);
+
+    go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      L.map(a => a + 10),
+      take(2),
+      log);
+
+    go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      L.map(a => Promise.resolve(a + 10)),
+      take(2),
+      log);
+
+    go(
+      [1, 2, 3],
+      map(a => Promise.resolve(a + 10)),
+      log);
+
+    go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      map(a => a + 10),
+      log);
+
+    go(
+      [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      map(a => Promise.resolve(a + 10)),
+      log);
+
+    //2. kleisli composition - L.filter, filter, nop, take
+    //filter에서 비동기 + 지연평가를 동시에 지원하려면 kleisli composition이 필요
+    go([1, 2, 3, 4, 5, 6],
+    L.map(a => Promise.resolve(a * a)),
+    L.map(a => Promise.resolve(a * a)),
+    L.filter(a => { log(a); //promise 들어오고 있음
+      return a % 2
+    }),
+    take(2),
+    log)// [] 오동작중
+
+    const nop = Symbol('no!');
+
+    L.filter = curry(function* (f, iter) {
+      for (const a of iter) {
+        const b = go1(a, f);
+        if(b instanceof Promise) yield b.then(b => b? a: Promise.reject(nop))
+        else if (b) yield a;
+      }
+    });
+
+  take = curry((l, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    return function recur() {
+      let cur;
+      while (!(cur = iter.next()).done) {
+        const a = cur.value;
+        if (a instanceof Promise) {
+          return a
+            .then(a => (res.push(a), res).length == l ? res : recur())
+            .catch(e => e == nop ? recur() : Promise.reject(e));//
+        }
+        res.push(a);
+        if (res.length == l) return res;
+      }
+      return res;
+    }();
+  });
+
+  //3. reduce에서 nop지원
+  
+    </script>
+</body>
+</html>

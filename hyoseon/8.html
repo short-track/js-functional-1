@@ -191,7 +191,7 @@ const range = l => {
     //모나드 ? 함수 합성을 간편하게 해줌
 
     const g = a => a + 1;
-    const f = a => a * a;
+    let f = a => a * a;
     log(f(g(1)));
     //log(f(g())); NaN 
     //유효하지 않은 인자가 들어와도 실행되어버림 
@@ -220,7 +220,7 @@ const range = l => {
       {id : 3, name:'c'},
       ]
     let getUserById = id => find(user => user.id == id, users);
-    const f = ({name}) => name;
+    f = ({name}) => name;
 
     let fg = (id)=> f(getUserById(id));
     log(fg(2)); //정상실행 
