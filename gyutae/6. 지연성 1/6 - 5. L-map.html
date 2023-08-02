@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script type="text/javascript" src="fx.js"></script>
+    <script>
+        L.map = function* (f, iter) {
+            for (const a of iter) {
+                yield f(a);
+            }
+        };
+
+        var it = L.map((a) => a + 10, [1, 2, 3]);
+        console.log(it.next()); //13
+        console.log(it.next()); // done true
+        console.log(it.next()); // done true
+
+        console.log('------')
+        console.log(...it); //아무 것도 출력 안한다.
+
+        var it2 = L.map((a) => a + 10, [1, 2, 3]);
+        console.log(...it2); //11, 12, 13
+
+    </script>
+</body>
+</html>

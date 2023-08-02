@@ -1,0 +1,61 @@
+<script src="./fx.js"></script>
+
+## 결과를 만드는 함수 reduce, take <br />
+-> 연산의 시작점을 알리는 함수 <br />
+
+### reduce
+
+<script>
+  // 제너레이터 함수
+  L.entries = function* (obj) {
+    for (const k in obj) yield [k, obj[k]];
+  };
+
+  // Array.prototype.join보다 다형성이 높은 join 함수
+  const join = curry((sep = ",", iter) =>
+    reduce((a, b) => `${a}${sep}${b}`, iter)
+  );
+
+  const queryStr = pipe(
+    L.entries,
+    L.map(([k, v]) => `${k}=${v}`),
+    join("&")
+  );
+
+  log(queryStr({ limit: 10, offset: 10, type: "notice" }));
+
+  // function *a() {
+  //   yield 10;
+  //   yield 11;
+  //   yield 12;
+  //   yield 13;
+  // }
+  //
+  // log(join(' - ', a()));
+</script>
+
+### take, find
+
+<script>
+  const users = [
+    { age: 32 },
+    { age: 31 },
+    { age: 37 },
+    { age: 28 },
+    { age: 25 },
+    { age: 32 },
+    { age: 31 },
+    { age: 37 },
+  ];
+
+  const find = curry((f, iter) => go(iter, L.filter(f), take(1), ([a]) => a)); // 조건에 맞는 값 하나를 꺼내는 함수
+
+  log(find((u) => u.age < 30)(users)); // {age: 28}
+
+  go(
+    users,
+    L.map((u) => u.age),
+    find((n) => n < 30),
+    log // 28
+  );
+</script>

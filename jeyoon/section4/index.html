@@ -70,7 +70,7 @@
     log
   );
 
-  go(
+  go( // curry로 변경한 함수 이용해 리팩토링
     products,
     filter((p) => p.price < 20000),
     map((p) => p.price),
@@ -79,11 +79,11 @@
   );
 </script>
 
-## curry
+## go+curry를 사용하여 더 읽기 좋은 코드로 만들기
 
 <script>
-  const mult = curry((a, b) => a * b);
-  log(mult(3)(2));
+  const mult = curry((a, b) => a * b); // 함수가 즉시 리턴됨
+  log(mult(3)(2)); // mult(3)만 했을 때는 함수만 리턴
 
   const mult3 = mult(3);
   log(mult3(10));
@@ -100,7 +100,7 @@
     reduce(add)
   );
 
-  const base_total_price = (predi) => pipe(filter(predi), total_price);
+  const base_total_price = (predi) => pipe(filter(predi), total_price); // TODO: 
 
   go(
     products,
