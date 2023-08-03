@@ -10,6 +10,314 @@
 <body>
   <script>const log = console.log;</script>
 
+  <script>
+    const curry = f =>
+      (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+    const go = (...args) => reduce((a, f) => f(a), args);
+    const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+
+    var take = curry((l, iter) => {
+      let res = [];
+      for (const a of iter) {
+        res.push(a);
+        if (res.length == l) return res;
+      }
+      return res;
+    });
+    var takeAll = take(Infinity);
+
+    const L = {};
+    L.range = function *(l) {
+      var i = -1;
+      while (++i < l) {
+        yield i;
+      }
+    };
+    L.map = curry(function *(f, iter) {
+      for (const a of iter) {
+        yield f(a);
+      }
+    });
+    L.filter = curry(function *(f, iter) {
+      for (const a of iter) {
+        if (f(a)) yield a;
+      }
+    });
+
+    var map = curry(pipe(L.map, takeAll));
+
+    const filter = curry(pipe(L.filter, takeAll));
+
+    const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+
+    var reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      return go1(acc, function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          acc = f(acc, a);
+          if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+      });
+      
+      return acc;
+    });
+    
+    const range = l => {
+      let i = -1;
+      let res = [];
+      while (++i < l) {
+        res.push(i);
+      }
+      return res;
+    };
+    
+    
+    const join = curry((sep = ',', iter) => 
+      reduce((a, b) => `${a}${sep}${b}`, iter));
+      L.entries = function *(obj) {
+      for (const k in obj) yield [k, obj[k]];
+    }
+    const find = curry((f, iter) => go(
+      iter,
+      // L.filter를 하면 하나가 꺼내질때까지만 평가하고 끝남
+      // filter(a => (log(a), f(a))),
+      // L.filter(a => (log(a), f(a))),
+      L.filter(f),
+      take(1),
+      ([a]) => a
+    ));
+    const isIterable = a => a && a[Symbol.iterator];
+    L.flatten = function *(iter) {
+      for (const a of iter) {
+        // yield *a === for (const b of a) yield b;
+        if (isIterable(a)) yield *a;
+        else yield a;
+      }
+    }
+    
+    const flatten = pipe(L.flatten, takeAll);
+    L.deepFlat = function *f(iter) {
+      for (const a of iter) {
+        // 재귀 활용
+        if (isIterable(a)) yield *f(a);
+        else yield a;
+      }
+    }
+  </script>
   
+  ## 지연 평가 + Promise - L.map, map, takeAll
+  <script>
+    L.map = curry(function *(f, iter) {
+      for (const a of iter) {
+        yield go1(a, f);
+      }
+    });
+
+    // [Promise, Promise]
+    // go([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+    //   L.map(a => a + 10),
+    //   take(2),
+    //   log);
+
+    var take = curry((l, iter) => {
+      let res = [];
+      iter = iter[Symbol.iterator]();
+      return function recur() {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          const a = cur.value;
+          if (a instanceof Promise) return a.then(a => 
+            (res.push(a), res).length == l ? res : recur());
+
+          res.push(a);
+          if (res.length == l) return res;
+        }
+        return res;
+      } ();
+    });
+
+    // [11, 12]
+    go([1, 2, 3],
+      L.map(a => a + 10),
+      take(2),
+      log);
+
+    // [11, 12]
+    go([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+      L.map(a => a + 10),
+      take(2),
+      log);
+
+    // [11, 12]
+    go([1, 2, 3],
+      L.map(a => Promise.resolve(a + 10)),
+      take(2),
+      log);
+
+    takeAll = take(Infinity);
+    map = curry(pipe(L.map, takeAll));
+    
+    // map이 L.map을 하고 takeAll을 하고 있기 때문에 L.map, take만 고쳐도 잘 동작한다
+    // 11, 12, 13
+    go([1, 2, 3],
+      map(a => Promise.resolve(a + 10)),
+      log);
+  </script>
+
+  ## Kleisli Composition - L.filter, filter, nop, takeAll
+  <script>
+    log('## Kleisli Composition - L.filter, filter, nop, takeAll');
+
+    // 1, 9
+    go([1, 2, 3, 4, 5, 6],
+      // L.map(a => Promise.resolve(a * a)),
+      // L.map(a => a * a),
+      L.filter(a => {
+        // Promise {<fulfilled>: 1}
+        // Promise {<fulfilled>: 4}
+        // Promise {<fulfilled>: 9}
+        // Promise {<fulfilled>: 16}
+        // log (a);
+        return a % 2;
+      }),
+      L.map(a => {
+        log(a);
+        return a * a;
+      }),
+      take(2),
+      log);
+
+      const nop = Symbol('nop');
+
+      var take = curry((l, iter) => {
+        let res = [];
+        iter = iter[Symbol.iterator]();
+        return function recur() {
+          let cur;
+          while (!(cur = iter.next()).done) {
+            const a = cur.value;
+            if (a instanceof Promise) {
+              // 의도한 reject(nop)이면 아무것도 하지 않고 재귀, 의도치 않은 에러라면 다시 reject
+              return a
+                .then(a => (res.push(a), res).length == l ? res : recur())
+                .catch(e => e == nop ? recur() : Promise.reject(e));
+            }
+            
+            res.push(a);
+            if (res.length == l) return res;
+          }
+          return res;
+        } ();
+      });
+
+      L.filter = curry(function *(f, iter) {
+        for (const a of iter) {
+          const b = go1(a, f);
+          // Promise.reject(nop): Promise.필터 이후에 전달될 함수에 들어가지 않아야 함
+          if (b instanceof Promise) yield b.then(b => b ? a : Promise.reject(nop));
+          else if (b) yield a;
+        }
+      });
+
+      // [1, 81, 625]
+      go([1, 2, 3, 4, 5, 6],
+        L.map(a => Promise.resolve(a * a)),
+        // L.map(a => a * a),
+        L.filter(a => a % 2),
+        L.map(a => a * a),
+        take(3),
+        log);
+
+      // reject('err') 이후 then은 전혀 실행되지 않고 catch에 걸림
+      Promise.resolve(1).then(() =>
+        Promise.reject('err').then(() => 
+          console.log('여기')).then(() => 
+          console.log('여기')).then(() => 
+          console.log('여기')).catch(e => 
+            console.log(e, 'hi')));
+
+      // 동기, 비동기를 모두 지원
+      go([1, 2, 3, 4, 5, 6],
+        // L.map(a => Promise.resolve(a * a)),
+        L.map(a => a * a),
+        L.filter(a => a % 2),
+        L.map(a => a * a),
+        take(3),
+        log);
+  </script>
+
+  ## reduce에서 nop 지원
+  <script>
+    log('reduce에서 nop 지원');
+
+    // Uncaught (in promise) Symbol(nop)
+    // go([1, 2, 3, 4, 5, 6],
+        // L.map(a => Promise.resolve(a * a)),
+        // L.filter(a => Promise.resolve(a % 2)),
+        // reduce((a, b) => a + b),
+        // log);
+
+    const reduceF = (acc, a, f) =>
+      a instanceof Promise ?
+        a.then(a => f(acc, a), e => e === nop ? acc : Promise.reject(e)) :
+        f(acc, a);
+
+    const head = iter => go1(take(1, iter), ([h]) => h);
+
+    var reduce = curry((f, acc, iter) => {
+      if (!iter) return reduce(f, head(iter = acc[Symbol.iterator]()), iter);
+
+      iter = iter[Symbol.iterator]();
+      return go1(acc, function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+          acc = reduceF(acc, cur.value, f);
+          if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+      });
+    });
+
+    // 35
+    go([1, 2, 3, 4, 5, 6],
+        L.map(a => Promise.resolve(a * a)),
+        L.filter(a => Promise.resolve(a % 2)),
+        reduce((a, b) => a + b),
+        log);
+  </script>
+
+  ## 지연평가 + Promise의 효율성
+  <script>
+    log('## 지연평가 + Promise의 효율성');
+
+    takeAll = take(Infinity);
+    // 비동기적인, 비용이 쎈 작업이 함수 대기열에 있는 상황이었다면
+    // L.map 코드 자체에 아예 걸리지 않게 된다
+    go([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        L.map(a => {
+          log('map', a);
+          // return Promise.resolve(a * a);
+          return new Promise(resolve => setTimeout(() => resolve(a * a), 500));
+          // return a * a;
+        }),
+        L.filter(a => {
+          log('filter', a);
+          return new Promise(resolve => setTimeout(() => resolve(a % 2), 500));
+          // return a % 2;
+          // return true;
+          // return Promise.resolve(a % 2);
+          // return a % 2;
+        }),
+        take(3),
+        log);
+  </script>
 </body>
 </html>
