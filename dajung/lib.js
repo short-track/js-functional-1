@@ -159,18 +159,15 @@ const C = {}
 
 const noop = function() {}
 
-const catchNoop = arr =>
+const catchNoop = ([...arr]) =>
     (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr)
 C.reduce = curry((f, acc, iter) => iter ? 
     reduce(f, acc, [...iter]) :
     reduce(f, [...acc]))
 
-C.reduce = curry((f, acc, iter) => {
-    const iter2 = catchNoop(iter ? [...iter] : [...acc])
-    return iter ? 
-        reduce(f, acc, iter2) :
-        reduce(f, iter2)
-})
+C.reduce = curry((f, acc, iter) => iter ? 
+    reduce(f, acc, catchNoop(iter ? [...iter] : [...acc])) :
+    reduce(f, catchNoop(iter ? [...iter] : [...acc])))
 
 C.take = curry((l, iter) => take(l, catchNoop([...iter])))
 
