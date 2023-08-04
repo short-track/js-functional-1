@@ -25,7 +25,7 @@ const reduceF = (acc, a, f) =>
 
 const head = iter => go1(take(1, iter), ([h]) => h)
 
-const reduce = curry((fn, acc, iter) => {
+const reduce = curry((f, acc, iter) => {
     if (!iter) {
         // 아래 코드도 비동기 처리를 해주면 좋다
         // iter = acc[Symbol.iterator]()
@@ -155,6 +155,32 @@ const find = curry((f, iter) => go(
 
 const map = curry(pipe(L.map, takeAll))
 
+const C = {}
+
+const noop = function() {}
+
+const catchNoop = arr =>
+    (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr)
+C.reduce = curry((f, acc, iter) => iter ? 
+    reduce(f, acc, [...iter]) :
+    reduce(f, [...acc]))
+
+C.reduce = curry((f, acc, iter) => {
+    const iter2 = catchNoop(iter ? [...iter] : [...acc])
+    return iter ? 
+        reduce(f, acc, iter2) :
+        reduce(f, iter2)
+})
+
+C.take = curry((l, iter) => take(l, catchNoop([...iter])))
+
+C.takeAll = C.take(Infinity)
+
+C.map = curry(pipe(L.map, C.takeAll))
+C.filter = curry(pipe(L.filter, C.takeAll))
+
+
+
 module.exports = {
     map,
     filter,
@@ -168,5 +194,6 @@ module.exports = {
     flatten,
     flatMap,
     find,
-    L
+    L,
+    C
 }
