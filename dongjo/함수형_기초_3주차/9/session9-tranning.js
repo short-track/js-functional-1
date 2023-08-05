@@ -12,7 +12,7 @@
 
 // 간단한 함수를 보면,
 /*
-    Promise 객체이면, then()을 통해 비동기 처리를 하고, 아니면 그냥 함수를 실행시킵니다.
+    Promise 객체이면, then()을 통해 비동기에서 값을 꺼내고, 함수를 실행시키고, 아니면 그냥 함수를 실행시킵니다.
     이렇게 되면, Promise 객체를 통해 비동기 처리를 하고, 그 결과를 다음 함수에게 전달할 수 있게 됩니다.
 */
 const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
@@ -23,7 +23,43 @@ const nop = Symbol('nop');
 L.filter = curry(function* (f, iter) {
     for (const a of iter) {
       const b = go1(a, f);
+      // f(a) 의 결과값이 Promise 일 수 있으니 그것에 대한 대비...
       if (b instanceof Promise) yield b.then(b => b ? a : Promise.reject(nop));
       else if (b) yield a;
     }
 });
+
+
+
+const C = {};
+// reduce() 에 iter를 분해할당하면서 iter은 처음부 끝까지 실행한 다음
+// 최종 reduce()에서 그 결과값에 대한 []를 다 더해서, 결과값을 내 뱉는다.
+C.reduce = curry((f, acc, iter) => iter ?
+    reduce(f, acc, [...iter]) : // 이렇게 했을때는 비동기가 왔을때 제어하지 않고, 대기중인 함수들을 모두 실행시킴
+    reduce(f, [...acc]));
+
+C.reduce = curry((f, acc, iter) => iter ?
+    reduce(f, acc, catchNoop(iter)) :
+    reduce(f, catchNoop(acc)));
+
+    const catchNoop = ([...arr]) =>
+    (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
+
+C.take = curry((l, iter) => take(l, catchNoop(iter)));
+
+
+/*
+    아래 병렬처리를 사용하는 예시
+    - nodejs 에서 db 에서 데이터를 가져오는데, 병렬적으로 한번에 가져온다던디
+    - 여러개 키로 여러개의 value를 한번에 얻어서 가져온다던지
+    - 이미지 처리를 한다던지
+*/
+console.time('');
+go([1, 2, 3, 4, 5, 6, 7, 8],
+    L.map(a => delay500(a * a, 'map 1')),
+    L.filter(a => delay500(a % 2, 'filter 2')),
+    L.map(a => delay500(a + 1, 'map 3')),
+    C.take(2),
+    reduce(add),
+    log,
+    _ => console.timeEnd(''));
