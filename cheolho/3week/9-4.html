@@ -1,0 +1,256 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+    <script>const log = console.log;</script>
+
+    <script>
+        const curry = f =>
+          (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+        const go = (...args) => reduce((a, f) => f(a), args);
+        const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    
+        const nop = Symbol('nop');
+        const take = curry((l, iter) => {
+            let res = [];
+            iter = iter[Symbol.iterator]();
+            return function recur() {
+            let cur;
+            while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                if (a instanceof Promise) {
+                // 의도한 reject(nop)이면 아무것도 하지 않고 재귀, 의도치 않은 에러라면 다시 reject
+                return a
+                    .then(a => (res.push(a), res).length == l ? res : recur())
+                    .catch(e => e == nop ? recur() : Promise.reject(e));
+                }
+                
+                res.push(a);
+                if (res.length == l) return res;
+            }
+            return res;
+            } ();
+        });
+        const takeAll = take(Infinity);
+    
+        const L = {};
+        L.range = function *(l) {
+          var i = -1;
+          while (++i < l) {
+            yield i;
+          }
+        };
+        L.map = curry(function *(f, iter) {
+            for (const a of iter) {
+                yield go1(a, f);
+            }
+        });
+        L.filter = curry(function *(f, iter) {
+            for (const a of iter) {
+            const b = go1(a, f);
+            if (b instanceof Promise) yield b.then(b => b ? a : Promise.reject(nop));
+            else if (b) yield a;
+            }
+        });
+    
+        const map = curry(pipe(L.map, takeAll));
+    
+        const filter = curry(pipe(L.filter, takeAll));
+    
+        const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+    
+        const reduceF = (acc, a, f) =>
+        a instanceof Promise ?
+            a.then(a => f(acc, a), e => e === nop ? acc : Promise.reject(e)) :
+            f(acc, a);
+
+        const head = iter => go1(take(1, iter), ([h]) => h);
+
+        const reduce = curry((f, acc, iter) => {
+            if (!iter) return reduce(f, head(iter = acc[Symbol.iterator]()), iter);
+
+            iter = iter[Symbol.iterator]();
+            return go1(acc, function recur(acc) {
+                let cur;
+                while (!(cur = iter.next()).done) {
+                acc = reduceF(acc, cur.value, f);
+                if (acc instanceof Promise) return acc.then(recur);
+                }
+                return acc;
+            });
+        });
+        
+        const range = l => {
+          let i = -1;
+          let res = [];
+          while (++i < l) {
+            res.push(i);
+          }
+          return res;
+        };
+        
+        const join = curry((sep = ',', iter) => 
+          reduce((a, b) => `${a}${sep}${b}`, iter));
+          L.entries = function *(obj) {
+          for (const k in obj) yield [k, obj[k]];
+        }
+        const find = curry((f, iter) => go(
+          iter,
+          // L.filter를 하면 하나가 꺼내질때까지만 평가하고 끝남
+          // filter(a => (log(a), f(a))),
+          // L.filter(a => (log(a), f(a))),
+          L.filter(f),
+          take(1),
+          ([a]) => a
+        ));
+        const isIterable = a => a && a[Symbol.iterator];
+        L.flatten = function *(iter) {
+          for (const a of iter) {
+            // yield *a === for (const b of a) yield b;
+            if (isIterable(a)) yield *a;
+            else yield a;
+          }
+        }
+        
+        const flatten = pipe(L.flatten, takeAll);
+        L.deepFlat = function *f(iter) {
+          for (const a of iter) {
+            // 재귀 활용
+            if (isIterable(a)) yield *f(a);
+            else yield a;
+          }
+        }
+
+        const C = {};
+        function noop() {}
+        const catchNoop = ([...arr]) => 
+            (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
+        
+        C.reduce = curry((f, acc, iter) => iter ?
+                reduce(f, acc, catchNoop(iter)) :
+                reduce(f, catchNoop(acc)));
+
+        C.reduce = curry((f, acc, iter) =>
+            reduce(f, ...(iter ? [acc, catchNoop(iter)] : [catchNoop(acc)])));
+
+        C.take = curry((l, iter) => take(l, catchNoop([...iter])));
+        C.takeAll = C.take(Infinity);
+        C.map = curry(pipe(L.map, C.takeAll));
+        C.filter = curry(pipe(L.filter, C.takeAll));
+      </script>
+
+    <script>
+
+        function delay(a) {
+            return new Promise(resolve => setTimeout(() => resolve(a), 500));
+        }
+        async function delayIdentity(a) {
+            await delay(1000);
+            return a;
+        }
+        
+        async function f1() {
+            const a = await delayIdentity(10);
+            const b = await delayIdentity(5);
+
+            return a + b;
+        }
+
+        // const pa = Promise.resolve(10);
+        // const pa = f1();
+        // (async () => {
+        //     log(await pa);
+        //     log(await pa);
+        //     log(await pa);
+        // }) ();
+    </script>
+
+    ## QnA. Array.prototype.map이 있는데 왜 FxJS의 map 함수가 필요한지?
+    <script>
+        async function delayI(a) {
+            return new Promise(resolve => setTimeout(() => resolve(a), 100));
+        }
+
+        async function f2() {
+            const list = [1, 2, 3, 4];
+            const temp = list.map(async a => await delayI(a * a )); 
+            // Promise, Promise, Promise, Promise]
+            // log(temp);
+            const res = await temp;
+            // log(res);
+        }
+        // f2();
+
+        async function f3() {
+            const list = [1, 2, 3, 4];
+            const temp = map(a => delayI(a * a), list);
+            // Promise {<pending>}
+            // log(temp);
+            const res = await temp;
+            // log(res);
+        }
+        // f3();
+
+        async function f4() {
+            return map(a => delayI(a * a), [1, 2, 3, 4]);
+        }
+
+        // f4().then(log);
+
+        // (async () => {
+        //     log(await f4());
+        // }) ();
+    </script>
+
+    ## QnA. 이제 비동기는 async/await로 제어할 수 있는데 왜 파이프라인이 필요한지?
+    <script>
+        // 둘이 해결하고자 하는 목적이 다르다
+        // async/await 은 promise.then() 으로 다루는게 복잡하다보니 이를 문장으로 다루기 위하여 만들어진 것이다.
+        
+        // 파이프라인은 비동기를 다루는 것이 목적이 아니라, 함수 합성을 다루는 것이 목적이다.
+        // async/await은 함수 합성을 풀어놓는 것이 목적이므로 관심사가 전혀 다름
+        
+        function f5(list) {
+            return go(list,
+                L.map(a => delayI(a * a)),
+                L.filter(a => delayI(a % 2)),
+                L.map(a => delayI(a + 1)),
+                C.take(2),
+                reduce((a, b) => delayI(a + b)));
+        }
+        go(f5([1, 2, 3, 4, 5, 6, 7, 8]), a => log(a, 'f5'));
+
+        async function f6(list) {
+            let temp = [];
+            for (const a of list) {
+                const b = delayI(a * a);
+                // Promise {<pending>}
+                // log(b);
+                const c = await delayI(a % 2);
+                if (await delayI(c % 2)) {
+                    const d = await delayI(c + 1);
+                    // log(d);
+                    temp.push(d);
+                    if (temp.length === 3) break;
+                }
+            }
+            // log(temp);
+            let res = temp[0], i = 0;
+            while (i++ < temp.length) {
+                res = await delayI(res + temp[i]);
+            }
+            return res;
+        }
+
+        // go(f6([1, 2, 3, 4, 5, 6, 7, 8]), log);
+    </script>
+
+
+</body>
+</html>
