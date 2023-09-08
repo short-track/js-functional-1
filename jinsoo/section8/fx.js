@@ -71,6 +71,8 @@ const map = curry(pipe(L.map, takeAll));
 
 const filter = curry(pipe(L.filter, takeAll));
 
+const go1 = (a, f) => (a instanceof Promise ? a.then(f) : f(a));
+
 const reduce = curry((f, acc, iter) => {
   if (!iter) {
     iter = acc[Symbol.iterator]();
@@ -78,12 +80,16 @@ const reduce = curry((f, acc, iter) => {
   } else {
     iter = iter[Symbol.iterator]();
   }
-  let cur;
-  while (!(cur = iter.next()).done) {
-    const a = cur.value;
-    acc = f(acc, a);
-  }
-  return acc;
+  return go1(acc, function recur(acc) {
+    let cur;
+    while (!(cur = iter.next()).done) {
+      const a = cur.value;
+      acc = f(acc, a);
+      // acc = acc instanceof Promise ? acc.then((acc) => f(acc, a)) : f(acc, a);
+      if (acc instanceof Promise) return acc.then(recur);
+    }
+    return acc;
+  });
 });
 
 const range = (l) => {
@@ -95,11 +101,7 @@ const range = (l) => {
   return res;
 };
 
-const find = curry((f, iter) => go(
-  iter,
-  L.filter(f),
-  take(1),
-  ([a]) => a));
+const find = curry((f, iter) => go(iter, L.filter(f), take(1), ([a]) => a));
 
 module.exports = {
   L,
