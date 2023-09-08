@@ -1,0 +1,208 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+    <script>const log = console.log;</script>
+
+    <script>
+        const curry = f =>
+          (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+        const go = (...args) => reduce((a, f) => f(a), args);
+        const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    
+        const nop = Symbol('nop');
+        const take = curry((l, iter) => {
+            let res = [];
+            iter = iter[Symbol.iterator]();
+            return function recur() {
+            let cur;
+            while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                if (a instanceof Promise) {
+                // 의도한 reject(nop)이면 아무것도 하지 않고 재귀, 의도치 않은 에러라면 다시 reject
+                return a
+                    .then(a => (res.push(a), res).length == l ? res : recur())
+                    .catch(e => e == nop ? recur() : Promise.reject(e));
+                }
+                
+                res.push(a);
+                if (res.length == l) return res;
+            }
+            return res;
+            } ();
+        });
+        const takeAll = take(Infinity);
+    
+        const L = {};
+        L.range = function *(l) {
+          var i = -1;
+          while (++i < l) {
+            yield i;
+          }
+        };
+        L.map = curry(function *(f, iter) {
+            for (const a of iter) {
+                yield go1(a, f);
+            }
+        });
+        L.filter = curry(function *(f, iter) {
+            for (const a of iter) {
+            const b = go1(a, f);
+            if (b instanceof Promise) yield b.then(b => b ? a : Promise.reject(nop));
+            else if (b) yield a;
+            }
+        });
+    
+        const map = curry(pipe(L.map, takeAll));
+    
+        const filter = curry(pipe(L.filter, takeAll));
+    
+        const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+    
+        const reduceF = (acc, a, f) =>
+        a instanceof Promise ?
+            a.then(a => f(acc, a), e => e === nop ? acc : Promise.reject(e)) :
+            f(acc, a);
+
+        const head = iter => go1(take(1, iter), ([h]) => h);
+
+        const reduce = curry((f, acc, iter) => {
+            if (!iter) return reduce(f, head(iter = acc[Symbol.iterator]()), iter);
+
+            iter = iter[Symbol.iterator]();
+            return go1(acc, function recur(acc) {
+                let cur;
+                while (!(cur = iter.next()).done) {
+                acc = reduceF(acc, cur.value, f);
+                if (acc instanceof Promise) return acc.then(recur);
+                }
+                return acc;
+            });
+        });
+        
+        const range = l => {
+          let i = -1;
+          let res = [];
+          while (++i < l) {
+            res.push(i);
+          }
+          return res;
+        };
+        
+        const join = curry((sep = ',', iter) => 
+          reduce((a, b) => `${a}${sep}${b}`, iter));
+          L.entries = function *(obj) {
+          for (const k in obj) yield [k, obj[k]];
+        }
+        const find = curry((f, iter) => go(
+          iter,
+          // L.filter를 하면 하나가 꺼내질때까지만 평가하고 끝남
+          // filter(a => (log(a), f(a))),
+          // L.filter(a => (log(a), f(a))),
+          L.filter(f),
+          take(1),
+          ([a]) => a
+        ));
+        const isIterable = a => a && a[Symbol.iterator];
+        L.flatten = function *(iter) {
+          for (const a of iter) {
+            // yield *a === for (const b of a) yield b;
+            if (isIterable(a)) yield *a;
+            else yield a;
+          }
+        }
+        
+        const flatten = pipe(L.flatten, takeAll);
+        L.deepFlat = function *f(iter) {
+          for (const a of iter) {
+            // 재귀 활용
+            if (isIterable(a)) yield *f(a);
+            else yield a;
+          }
+        }
+
+        const C = {};
+        function noop() {}
+        const catchNoop = ([...arr]) => 
+            (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
+        
+        // C.reduce = curry((f, acc, iter) => {
+        //     const iter2 = catchNoop(iter ? [...iter] : [...acc]);
+        //     return iter ?
+        //         reduce(f, acc, iter2) :
+        //         reduce(f, iter2);
+        // });
+
+        // 함수를 연속적으로 실행하는 식으로 표현하는 것이 보기 좋음
+        C.reduce = curry((f, acc, iter) => iter ?
+                reduce(f, acc, catchNoop(iter)) :
+                reduce(f, catchNoop(acc)));
+
+        // 전개 연산자를 사용하면...
+        C.reduce = curry((f, acc, iter) =>
+            reduce(f, ...(iter ? [acc, catchNoop(iter)] : [catchNoop(acc)])));
+
+        C.take = curry((l, iter) => take(l, catchNoop([...iter])));
+      </script>
+
+    ## 즉시 병렬적으로 평가하기 - C.map, C.filter
+    <script>
+        C.takeAll = C.take(Infinity);
+        C.map = curry(pipe(L.map, C.takeAll));
+        C.filter = curry(pipe(L.filter, C.takeAll));
+
+        // var delay500 = a => new Promise(resolve => {
+            // setTimeout(() => resolve(a), 500);
+        // });
+        // C.map(a => delay500(a * a), [1, 2, 3, 4]).then(log);
+        // C.filter(a => delay500(a * 2), [1, 2, 3, 4]).then(log);
+    </script>
+
+    ## 즉시, 지연, Promise, 병렬적 조합하기
+    <script>
+        const delay500 = (a, name) => new Promise(resolve => {
+            log(`${name}: ${a}`);
+            setTimeout(() => resolve(a), 500);
+        });
+
+        // 모든 것을 즉시 평가
+        // console.time('');
+        // go([1, 2, 3, 4, 5, 6, 7, 8],
+        //     map(a => delay500(a * a, 'map 1')),
+        //     filter(a => delay500(a % 2, 'filter 2')),
+        //     map(a => delay500(a + 1, 'map 3')),
+        //     take(3),
+        //     // reduce((a, b) => a + b),
+        //     log,
+        //     _ => console.timeEnd(''));
+
+        // 지연평가로 평가를 최소화
+        // go([1, 2, 3, 4, 5, 6, 7, 8],
+        //     L.map(a => delay500(a * a, 'map 1')),
+        //     L.filter(a => delay500(a % 2, 'filter 2')),
+        //     L.map(a => delay500(a + 1, 'map 3')),
+        //     take(2),
+        //     // reduce((a, b) => a + b),
+        //     log);
+
+        // 병렬평가와 지연평가를 조합해서 최적화
+        go([1, 2, 3, 4, 5, 6, 7, 8],
+            // 부하를 많이 주고 최대한 빨리 결과를 얻을 것인지
+            C.map(a => delay500(a * a, 'map 1')),
+            L.filter(a => delay500(a % 2, 'filter 2')),
+            L.map(a => delay500(a + 1, 'map 3')),
+            // take(2),
+            C.reduce((a, b) => a + b),
+            log);
+    </script>
+
+    ## 연관관계에 있는 테이블들이 서로 관계없어서 lock이 걸리지 않는다면
+    ## C.map 과 같은 병렬 기법을 통해 성능을 끌어올릴 수 있다
+</body>
+</html>

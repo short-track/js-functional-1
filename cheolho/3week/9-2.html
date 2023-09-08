@@ -1,0 +1,178 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>functional-js #1</title>
+<style>
+</style>
+</head>
+<body>
+    <script>const log = console.log;</script>
+
+    <script>
+        const curry = f =>
+          (a, ..._) => _.length ? f(a, ..._) : (..._) => f(a, ..._);
+        const go = (...args) => reduce((a, f) => f(a), args);
+        const pipe = (f, ...fs) => (...as) => go(f(...as), ...fs);
+    
+        const nop = Symbol('nop');
+        const take = curry((l, iter) => {
+            let res = [];
+            iter = iter[Symbol.iterator]();
+            return function recur() {
+            let cur;
+            while (!(cur = iter.next()).done) {
+                const a = cur.value;
+                if (a instanceof Promise) {
+                // 의도한 reject(nop)이면 아무것도 하지 않고 재귀, 의도치 않은 에러라면 다시 reject
+                return a
+                    .then(a => (res.push(a), res).length == l ? res : recur())
+                    .catch(e => e == nop ? recur() : Promise.reject(e));
+                }
+                
+                res.push(a);
+                if (res.length == l) return res;
+            }
+            return res;
+            } ();
+        });
+        const takeAll = take(Infinity);
+    
+        const L = {};
+        L.range = function *(l) {
+          var i = -1;
+          while (++i < l) {
+            yield i;
+          }
+        };
+        L.map = curry(function *(f, iter) {
+            for (const a of iter) {
+                yield go1(a, f);
+            }
+        });
+        L.filter = curry(function *(f, iter) {
+            for (const a of iter) {
+            const b = go1(a, f);
+            if (b instanceof Promise) yield b.then(b => b ? a : Promise.reject(nop));
+            else if (b) yield a;
+            }
+        });
+    
+        const map = curry(pipe(L.map, takeAll));
+    
+        const filter = curry(pipe(L.filter, takeAll));
+    
+        const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+    
+        const reduceF = (acc, a, f) =>
+        a instanceof Promise ?
+            a.then(a => f(acc, a), e => e === nop ? acc : Promise.reject(e)) :
+            f(acc, a);
+
+        const head = iter => go1(take(1, iter), ([h]) => h);
+
+        const reduce = curry((f, acc, iter) => {
+            if (!iter) return reduce(f, head(iter = acc[Symbol.iterator]()), iter);
+
+            iter = iter[Symbol.iterator]();
+            return go1(acc, function recur(acc) {
+                let cur;
+                while (!(cur = iter.next()).done) {
+                acc = reduceF(acc, cur.value, f);
+                if (acc instanceof Promise) return acc.then(recur);
+                }
+                return acc;
+            });
+        });
+        
+        const range = l => {
+          let i = -1;
+          let res = [];
+          while (++i < l) {
+            res.push(i);
+          }
+          return res;
+        };
+        
+        const join = curry((sep = ',', iter) => 
+          reduce((a, b) => `${a}${sep}${b}`, iter));
+          L.entries = function *(obj) {
+          for (const k in obj) yield [k, obj[k]];
+        }
+        const find = curry((f, iter) => go(
+          iter,
+          // L.filter를 하면 하나가 꺼내질때까지만 평가하고 끝남
+          // filter(a => (log(a), f(a))),
+          // L.filter(a => (log(a), f(a))),
+          L.filter(f),
+          take(1),
+          ([a]) => a
+        ));
+        const isIterable = a => a && a[Symbol.iterator];
+        L.flatten = function *(iter) {
+          for (const a of iter) {
+            // yield *a === for (const b of a) yield b;
+            if (isIterable(a)) yield *a;
+            else yield a;
+          }
+        }
+        
+        const flatten = pipe(L.flatten, takeAll);
+        L.deepFlat = function *f(iter) {
+          for (const a of iter) {
+            // 재귀 활용
+            if (isIterable(a)) yield *f(a);
+            else yield a;
+          }
+        }
+      </script>
+
+    ## 지연된 함수열을 병렬적으로 평가하기 - C.reduce, C.take
+    <script>
+        const C = {};
+        function noop() {}
+        // js특성상 reject하는 순간 로그가 출력됨
+        // 에러가 뿜어지지 않도록 미리 catch
+        const catchNoop = arr => 
+            // map이 아닌 forEach를 쓴 이유 catch한 promise는 밖에서 다시 catch할 수 없음
+            // catch만 걸어놓고 에러만 뿜어지지 않도록
+            (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
+        
+        C.reduce = curry((f, acc, iter) => {
+            const iter2 = catchNoop(iter ? [...iter] : [...acc]);
+            return iter ?
+                reduce(f, acc, iter2) :
+                reduce(f, iter2);
+        });
+
+        C.take = curry((l, iter) => take(l, catchNoop([...iter])));
+
+        const delay500 = a => new Promise(resolve => {
+            log('hi~');
+            setTimeout(() => resolve(a), 500);
+        });
+        //  4832.60595703125 ms
+        // console.time('reduce');
+        // go([1, 2, 3, 4, 5],
+            // L.map(a => delay500(a * a)),
+            // L.filter(a => a % 2),
+            // reduce((a, b) => a + b),
+            // log,
+            // _ => console.timeEnd('reduce'));
+
+        // 832.925048828125 ms
+        console.time('C.reduce');
+        go([1, 2, 3, 4, 5],
+            L.map(a => delay500(a * a)),
+            L.filter(a => delay500(a % 2)),
+            L.map(a => delay500(a * a)),
+            L.map(a => delay500(a * a)),
+            // 최대한 많은 자원을 써서 병렬적으로
+            // C.take(2),
+            C.reduce((a, b) => a + b),
+            log,
+            _ => console.timeEnd('C.reduce'));
+    </script>
+</body>
+</html>
