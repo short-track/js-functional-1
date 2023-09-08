@@ -18,7 +18,7 @@ const curry = f =>
 
 const isIterable = a => a && a[Symbol.iterator];
 
-const reduce = curry((f, acc, iter) => {
+let reduce = curry((f, acc, iter) => {
   if (!iter) {
     iter = acc[Symbol.iterator]();
     acc = iter.next().value;
@@ -132,7 +132,7 @@ const range = l => {
       });
     });
 
-    function add20(a) { //promise를 리턴한다는 점이 중요하다 
+    function add20(a) { //promise를 값으로 리턴한다는 점이 중요하다 
       return new Promise(resolve => setTimeout(() => resolve(a + 20), 100));
     }
 
@@ -143,6 +143,7 @@ const range = l => {
 
     //2. 비동기를 값으로 만드는 promise
     //promise는 일급함수로 값으로 리턴한다는 점에서!! callback과 큰 차이
+    //대기, 성공, 실패를 다루는 일급값을 가진다는 점에서 콜백과 큰 차이를 가진다.
     let a = add10(5, res => { 
         add10(res, res => {
           add10(res, res => {
@@ -150,7 +151,7 @@ const range = l => {
           });
         });
       });
-    log(a); //콜백의 결과는 undefined
+    log(a); //a의 결과는 undefined => context만 남아있음
     // 콜백을 실행하고 나면 끝...!
     // 그렇기에 내부적으로 로직을 계속 이어가야함 (콜백함수가 늘어남)
 
@@ -158,29 +159,158 @@ const range = l => {
       .then(add20)
       .then(add20)
       .then(log);
-    log(b); // Promise의 결과는 Promise를 리턴함
-    //즉, 비동기상황을 값으로 다루고 있고, 이것은 일급 <= 이점이 가장 중요한 점 !
-    let c = b.then(log);
+    log(b); // b의 결과는 Promise를 리턴함 => 값이 리턴되기 때문에 이후 다른 일을 할수가 있다는 점 !(.then을 통해...)
+    //즉, 비동기상황을 값으로 다루고 있고, 이것은 일급 
+    let c = b.then(log); //연결지어서 계속 다른 일을 할수 있음
     let d = c.then(log); //이러한 로직이 계속 가능함 
 
     //3. 값으로서의 promise활용
-    const delay100 = a => new Promise(resolve =>
+    const go0 = (a, f) => f(a); 
+    const add5 = a => a + 5;
+
+    log(go0(10, add5)) // 15
+   // log(go0(Promise.resolve(10), add5)); <= 정상 작동하지 않음 (a가 비동기적으로 실행중이기 때문에)
+   // 위와 같은 코드를 실행할 수있는 go1을 만들자 (promise가 일급인 성질을 이용해서!)
+    
+    const delay100 = a => new Promise(resolve => //100ms이후에 값이 리턴됨
     setTimeout(() => resolve(a), 100));
 
     const go1 = (a, f) => a instanceof Promise ? a.then(f) : f(a); // a가 프로미스인지 체크해서 f를 실행함
-    const add5 = a => a + 5;
+    log(go1(10, add5)); //15
+    log(go1(delay100(10), add5)); //15
       
     const n1 = 10;
-    // log(go1(go1(n1, add5), log));
+    // log(go1(go1(n1, add5), log)); 마지막 log는 undefiend 리턴함 
       
     const n2 = delay100(10);
-    // log(go1(go1(n2, add5), log));
+    // log(go1(go1(n2, add5), log)); 마지막 log는 프로미스를 계속 이어줌 
+    
 
     //4. 합성 관점에서의 promise와 모나드
-    //함수 합성?  f함수가 있다고 할때, g함수의 결과를 f함수가 받아 f의 결과를 만드는 것 
+    //함수 합성?  f함수가 있다고 할 때, g함수의 결과를 f함수가 받아 f의 결과를 만드는 것 => f(g(x))와 같음
     //모나드 ? 함수 합성을 간편하게 해줌
-    //promise ? 비동기상황을 안전하게 합성해줌
 
+    const g = a => a + 1;
+    let f = a => a * a;
+    log(f(g(1)));
+    //log(f(g())); NaN 
+    //유효하지 않은 인자가 들어와도 실행되어버림 
+    //이와 같이 g함수의 인자로 무엇이 들어올지 알기 쉽지 않은경우를 떠올리면, 함수합성이 안전하게 되었다고 보기 어려움
+    //위 함수합성은 안전한 인자가 들어와야만 안전한 합성이 가능함
+
+    //모나드 형태예시 
+    [1].map(g).map(f).forEach(r => log(r)); //4
+    [].map(g).map(f).forEach(r => log(r)); // 유효하지 않은 인자가 들어왔을때는 실행되지 않음 => 모나드 => 안전 
+    
+    //promise ? 비동기상황을 안전하게 합성해줌
+    Promise.resolve().then(g).then(f).then(r => log(r)); // NaN => 프로미스는 유효하지 않은 인자들어왔을때 실행되긴함 
+    //하지만 비동기와 같은 특정 상황에서 안전하게 합성가능
+
+
+    //Kleisli Composition 관점에서의 Promise
+    //Kleisli Composition ? 오류가 있을수 있는 상황에서의 안전하게 합성하기 위한 규칙 같은 것
+    //f(g(x)) == f(g(x)) <- 성립하지 않은 상황에서도 규칙을 통해 ==같음이 성립될 수 있도록 하는 것
+
+    //g(x)에서 에러난경우,  f(g(x)) 의 결과와 g(x)만을 실행한 결과가 같도록 합성하는 것이 클레이슬리 컴포지션임
+    //뭔소린지 아직 잘 모르겠따 가보자...
+
+    let users = [
+      {id : 1, name:'a'},
+      {id : 2, name:'b'},
+      {id : 3, name:'c'},
+      ]
+    let getUserById = id => find(user => user.id == id, users);
+    f = ({name}) => name;
+
+    let fg = (id)=> f(getUserById(id));
+    log(fg(2)); //정상실행 
+
+    users.pop();
+    users.pop(); //데이터에 에러가 생길 수 있는 상황을 만나면
+    //log(fg(2));에러남
+
+    //fg() 와 getUserById()를 f(g(x)) == getUserById(x) 하도록 바꿔보자
+    
+    getUserById = id => find(user => user.id == id, users) || Promise.reject('여기망했어요!');
+    fg = id => Promise.resolve(id).then(g).then(f).catch(a => a);
+
+    log(fg(2)); //'여기망했어요!'
+    getUserById(2); //Promise{<rejected : '여기망했어요!'}
+
+    //go, pipe, reduce에서 비동기 제어
+    
+    go( //go()를 사용할때 중간에 비동기 함수를 사용해도 에러나지 않도록 해보자
+        //go()는 reduce로 만들어진 함수임
+      1,
+      a => a + 10,
+     // a => Promise.resolve(a + 100),
+      log
+    )
+
+    reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      return function recur(acc){ 
+        let cur;
+        while(!(cur = iter.next()).done) {
+          const a  = cur.value;
+          acc = f(acc, a);
+          if(acc instanceof Promise) return acc.then(recur);
+        }
+        return acc
+      }(acc);
+      });
+    
+    go(
+      1,
+      a => a + 10,
+      a => Promise.resolve(a + 100),
+      log
+    )// 잘처리됨 
+    //go()의 첫번째인자로 Promise가 들어가도 에러나지 않도록 실행되도록 go1()을 활용하자
+
+reduce = curry((f, acc, iter) => {
+      if (!iter) {
+        iter = acc[Symbol.iterator]();
+        acc = iter.next().value;
+      } else {
+        iter = iter[Symbol.iterator]();
+      }
+      return go1(acc, function recur(acc){ 
+        let cur;
+        while(!(cur = iter.next()).done) {
+          const a  = cur.value;
+          acc = f(acc, a);
+          if(acc instanceof Promise) return acc.then(recur);
+        }
+        return acc
+      });
+      });
+    go(
+      Promise.resolve(1),
+      a => a + 10,
+      a => Promise.reject('여기 망했어요!'),
+      log
+    ).catch(a => log(a)); //'여기 망했어요!'
+
+    //Promise를 값으로 활용하는 사고를 해보자! 
+
+    //Promise.then의 중요한 규칙
+
+    Promise.resolve(Promise.resolve(Promise.resolve(1))).then(log); // 1 
+    // 중첩된 promise도 then 으로 한번에 결과를 꺼내서 볼수있다. 
+    new Promise(resolve => resolve(new Promise(resolve => resolve(1)))).then(log); //1
+    
+    
+    
+      
+    
+
+    
     
   </script>
 </body>
