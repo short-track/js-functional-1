@@ -1,0 +1,110 @@
+<script src="./fx.js"></script>
+
+# 비동기 동시성 프로그래밍 <br />
+## callback과 promise
+
+<script>
+  function add10(a, callback) {
+    setTimeout(() => callback(a + 10), 100);
+  }
+
+  var a = add10(5, (res) => {
+    add10(res, (res) => {
+      add10(res, (res) => {
+        // log(res);
+      });
+    });
+  });
+
+  // log(a);
+
+  function add20(a) {
+    // 함수를 받지 않고 인자만 받음
+    return new Promise((resolve) => setTimeout(() => resolve(a + 20), 100));
+  }
+  // promise는 대기되고 있는 값을 만든다는 점에서 callback과 큰 차이가 있음
+  // promise는 비동기 상황에 대한 값을 만들어 리턴함 -> "일급" -> 변수에 할당되거나 함수에 전달될 수 있음
+
+  var b = add20(5).then(add20).then(add20);
+  // .then(log);
+
+  // log(b);
+</script>
+
+## 값으로서의 Promise 활용 (일급 활용)
+
+<script>
+  const delay100 = (a) =>
+    new Promise((resolve) => setTimeout(() => resolve(a), 100));
+
+  const go1 = (a, f) => (a instanceof Promise ? a.then(f) : f(a));
+  // a가 promise인지 확인 (비동기 상황인지 확인)
+  const add5 = (a) => a + 5;
+
+  const n1 = 10;
+  // log(go1(go1(n1, add5), log));
+
+  const n2 = delay100(10);
+  // log(go1(go1(n2, add5), log));
+</script>
+
+## 합성 관점에서의 Promise와 모나드 <br />
+## Composition
+
+<script type="module">
+  // f . g
+  // f(g(x))
+
+  const g = (a) => a + 1;
+  const f = (a) => a * a;
+
+  // log(f(g(1))); // 4
+  // log(f(g())); // NaN
+
+  Array.of(1).map(g).map(f) /*.forEach(r => log(r))*/;
+  [].map(g).map(f) /*.forEach(r => log(r))*/;
+
+  Promise.resolve(2).then(g).then(f) /*.then(r => log(r))*/;
+  // Promise는 비동기 상황에서 안전하게 합성을 할 수 있게 해줌
+  new Promise((resolve) => setTimeout(() => resolve(2), 100))
+    .then(g)
+    .then(f) /*.then(r => log(r))*/;
+</script>
+
+## Kleisli Composition 관점에서의 Promise
+
+<script>
+  // f . g
+  // f(g(x)) = f(g(x)) // 좌변의 g(x)와 우변의 g(x)는 결과가 다를 수 있음
+  // Kleisli 합성은 이러한 상황에서도 안전한 합성을 할 수 있게 해주는 방법
+  // f(g(x)) = g(x) // Kleisli 합성은 g(x)에서 오류가 났을 때, 이와 같이 결과가 나오도록 합성함
+
+  var users = [
+    { id: 1, name: "aa" },
+    { id: 2, name: "bb" },
+    { id: 3, name: "cc" },
+  ];
+
+  const getUserById = (id) =>
+    find((u) => u.id == id, users) || Promise.reject("없어요!");
+
+  const f = ({ name }) => name;
+  const g = getUserById;
+
+  // const fg = id => f(g(id));
+
+  const fg = (id) =>
+    Promise.resolve(id)
+      .then(g)
+      .then(f)
+      .catch((a) => a);
+  // Kleisli Composition
+
+  fg(2).then(log);
+
+  setTimeout(function () {
+    users.pop();
+    users.pop();
+    fg(2).then(log);
+  }, 10);
+</script>
